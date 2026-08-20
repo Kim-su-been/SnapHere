@@ -1,0 +1,63 @@
+# Sub Project 1
+
+FE, BE, AI, 문서를 하나의 Git 저장소에서 함께 관리하는 모노레포입니다.
+
+## 폴더 구조
+
+```text
+.
+├── frontend/      # 프론트엔드 애플리케이션
+├── backend/       # 백엔드 API 서버
+├── ai/            # AI 모델, 학습/추론 코드, 실험 자료
+├── docs/          # 기획/설계/회의/API 문서
+├── .gitignore     # 공통 Git 제외 규칙
+└── README.md      # 프로젝트 개요
+```
+
+## 영역별 역할
+
+### `frontend/`
+
+사용자 화면, 클라이언트 상태 관리, API 연동 코드를 둡니다.
+
+### `backend/`
+
+서버 애플리케이션, API, DB 연동, 인증/인가, 배치 작업 등을 둡니다.
+
+### `ai/`
+
+데이터 전처리, 모델 학습, 추론 코드, 실험 기록, 모델 서빙 관련 코드를 둡니다.
+
+대용량 데이터셋과 모델 파일은 Git에 직접 올리지 않고 외부 저장소나 Git LFS 사용을 권장합니다.
+
+### `docs/`
+
+요구사항, 기능 명세, API 명세, 아키텍처, 회의록, 발표 자료 등 프로젝트 문서를 둡니다.
+
+## 프로젝트 관리 링크
+
+- [Notion](https://ionized-chickadee-d69.notion.site/2d122a7473ba838d84eb8140cf0f299d?source=copy_link)
+- [WBS](https://docs.google.com/spreadsheets/d/1rQErSzgtlAKI1DZFAM2H8Ieyrdjzry1NjyaZugizg1A/edit?usp=sharing)
+- [1차 와이어프레임](https://drive.google.com/file/d/1_dibmc7pM_aGZf6QHIcTZoVKuJjcpBTj/view?usp=sharing)
+- [요구사항 명세서](https://docs.google.com/spreadsheets/d/1rQErSzgtlAKI1DZFAM2H8Ieyrdjzry1NjyaZugizg1A/edit?usp=sharing)
+- [기능 명세서](https://docs.google.com/spreadsheets/d/1rQErSzgtlAKI1DZFAM2H8Ieyrdjzry1NjyaZugizg1A/edit?usp=sharing)
+- [PoC](https://ionized-chickadee-d69.notion.site/PoC-39e22a7473ba8013bae7e7fcb9767621?source=copy_link)
+
+## Git 관리 규칙
+
+이 프로젝트는 `main`, `develop`, 작업 브랜치를 사용합니다.
+
+```text
+main
+└── develop
+    ├── feature/frontend-login
+    ├── fix/backend-jwt-expire
+    └── docs/git-strategy
+```
+
+- 기능 개발은 `develop`에서 새 브랜치를 만들어 진행합니다.
+- 작업이 끝나면 Merge Request를 만들고 `develop`에 merge합니다.
+- 브랜치 이름은 `feature/frontend-login`처럼 작성합니다.
+- 커밋 메시지는 `feat(frontend): 로그인 페이지 구현`처럼 작성합니다.
+
+자세한 Git 전략은 [docs/git-strategy.md](docs/git-strategy.md)를 참고합니다.
