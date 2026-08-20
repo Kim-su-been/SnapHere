@@ -1,4 +1,4 @@
-# Sub Project 1
+# 데이터 활용 공모전
 
 FE, BE, AI, 문서를 하나의 Git 저장소에서 함께 관리하는 모노레포입니다.
 
@@ -36,12 +36,11 @@ FE, BE, AI, 문서를 하나의 Git 저장소에서 함께 관리하는 모노�
 
 ## 프로젝트 관리 링크
 
-- [Notion](https://ionized-chickadee-d69.notion.site/2d122a7473ba838d84eb8140cf0f299d?source=copy_link)
-- [WBS](https://docs.google.com/spreadsheets/d/1rQErSzgtlAKI1DZFAM2H8Ieyrdjzry1NjyaZugizg1A/edit?usp=sharing)
-- [1차 와이어프레임](https://drive.google.com/file/d/1_dibmc7pM_aGZf6QHIcTZoVKuJjcpBTj/view?usp=sharing)
-- [요구사항 명세서](https://docs.google.com/spreadsheets/d/1rQErSzgtlAKI1DZFAM2H8Ieyrdjzry1NjyaZugizg1A/edit?usp=sharing)
-- [기능 명세서](https://docs.google.com/spreadsheets/d/1rQErSzgtlAKI1DZFAM2H8Ieyrdjzry1NjyaZugizg1A/edit?usp=sharing)
-- [PoC](https://ionized-chickadee-d69.notion.site/PoC-39e22a7473ba8013bae7e7fcb9767621?source=copy_link)
+- [Notion](https://app.notion.com/p/39848b75b1c08024939dd161044f2489)
+- [1차 와이어프레임]
+- [요구사항 명세서]
+- [기능 명세서]
+
 
 ## Git 관리 규칙
 
@@ -60,4 +59,4 @@ main
 - 브랜치 이름은 `feature/frontend-login`처럼 작성합니다.
 - 커밋 메시지는 `feat(frontend): 로그인 페이지 구현`처럼 작성합니다.
 
-자세한 Git 전략은 [docs/git-strategy.md](docs/git-strategy.md)를 참고합니다.
+자세한 Git 전략은 [docs/git-strategy.md](git-strategy.md)를 참고합니다.
