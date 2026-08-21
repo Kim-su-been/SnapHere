@@ -218,3 +218,69 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# -----------------------------------------------------------------------------
+# Repository-wide local files and generated artifacts
+# -----------------------------------------------------------------------------
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDEs and editors
+.idea/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+*~
+.fleet/
+
+# Local environment and secret files. Keep sanitized templates trackable.
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+**/key.properties
+**/local.properties
+**/*service-account*.json
+**/serviceAccountKey.json
+
+# Dart and Flutter generated files
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/.pub/
+**/.pub-cache/
+**/coverage/
+**/doc/api/
+**/.widget_preview/
+**/app.*.symbols
+**/app.*.map.json
+
+# Android generated files
+**/.gradle/
+**/.cxx/
+**/captures/
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+
+# Apple platform generated files
+**/DerivedData/
+**/Pods/
+**/.symlinks/
+**/xcuserdata/
+**/Flutter/Generated.xcconfig
+**/Flutter/flutter_export_environment.sh
+**/Flutter/ephemeral/
+**/Runner/GeneratedPluginRegistrant.*
