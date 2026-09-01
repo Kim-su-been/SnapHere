@@ -61,13 +61,14 @@ class _SearchEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.md),
+      borderRadius: BorderRadius.circular(10),
       child: Container(
-        height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        // Figma `SearchBar`: 높이 38 · radius 10 · padding 좌 10 / 우 14
+        height: 38,
+        padding: const EdgeInsets.only(left: 10, right: 14),
         decoration: BoxDecoration(
           color: AppColors.card,
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.border),
         ),
         child: Row(

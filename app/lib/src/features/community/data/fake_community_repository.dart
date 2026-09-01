@@ -10,6 +10,10 @@ class FakeCommunityRepository implements CommunityRepository {
 
   static const _latency = Duration(milliseconds: 250);
 
+  /// 더미 게시글의 작성 시각. 고정 날짜를 쓰면 시간이 지날수록 카드의
+  /// "N시간 전"이 Figma와 멀어지므로 현재 시각 기준으로 만든다.
+  static DateTime _ago(Duration elapsed) => DateTime.now().subtract(elapsed);
+
   final List<String> _recent = ['전주 한옥마을', '야경', '서울 궁궐'];
 
   static final _minsu = CommunityAuthor(userId: 'u-1', nickname: '민수_Kim');
@@ -23,7 +27,7 @@ class FakeCommunityRepository implements CommunityRepository {
     nickname: 'dahye_travel',
   );
 
-  static final _feedPosts = <CommunityPost>[
+  static List<CommunityPost> get _feedPosts => <CommunityPost>[
     CommunityPost(
       postId: 'p-1',
       author: _minsu,
@@ -37,7 +41,7 @@ class FakeCommunityRepository implements CommunityRepository {
       likeCount: 142,
       commentCount: 28,
       imageCount: 5,
-      createdAt: DateTime(2026, 9, 1, 7, 41),
+      createdAt: _ago(const Duration(hours: 2)),
     ),
     CommunityPost(
       postId: 'p-2',
@@ -48,11 +52,11 @@ class FakeCommunityRepository implements CommunityRepository {
       content: '해가 질 무렵 미포철길을 걸었어요. 파도 소리랑 같이 걷다 보면 시간 가는 줄 모릅니다.',
       likeCount: 98,
       commentCount: 12,
-      createdAt: DateTime(2026, 9, 1, 4, 20),
+      createdAt: _ago(const Duration(hours: 5)),
     ),
   ];
 
-  static final _searchPosts = <CommunityPost>[
+  static List<CommunityPost> get _searchPosts => <CommunityPost>[
     CommunityPost(
       postId: 'p-3',
       author: _yejin,
@@ -63,7 +67,7 @@ class FakeCommunityRepository implements CommunityRepository {
           '전주 한옥마을 초입에 있어서 들르기 좋은 곳이에요!',
       likeCount: 78,
       commentCount: 9,
-      createdAt: DateTime(2026, 9, 1, 6, 41),
+      createdAt: _ago(const Duration(hours: 3)),
     ),
     CommunityPost(
       postId: 'p-4',
@@ -74,7 +78,7 @@ class FakeCommunityRepository implements CommunityRepository {
       likeCount: 64,
       commentCount: 7,
       imageCount: 4,
-      createdAt: DateTime(2026, 9, 1, 5, 10),
+      createdAt: _ago(const Duration(hours: 6)),
     ),
   ];
 

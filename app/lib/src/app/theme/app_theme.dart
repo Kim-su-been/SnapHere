@@ -42,12 +42,15 @@ abstract final class AppTheme {
         thickness: 1,
         space: 1,
       ),
+      // Figma `SearchBar`: 높이 38 · radius 10 · padding 좌 10 / 우 14
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.card,
+        isDense: true,
+        constraints: const BoxConstraints(minHeight: 38, maxHeight: 38),
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.md,
+          horizontal: 10,
+          vertical: AppSpacing.sm,
         ),
         hintStyle: _textTheme.bodyMedium?.copyWith(
           color: AppColors.textSecondary,
@@ -60,7 +63,7 @@ abstract final class AppTheme {
   }
 
   static OutlineInputBorder _inputBorder(Color color) => OutlineInputBorder(
-    borderRadius: BorderRadius.circular(AppRadius.md),
+    borderRadius: BorderRadius.circular(10),
     borderSide: BorderSide(color: color),
   );
 
