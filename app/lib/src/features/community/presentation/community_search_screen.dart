@@ -387,9 +387,7 @@ class _ResultCount extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final base = textTheme.bodyMedium?.copyWith(
-      color: AppColors.textSecondary,
-    );
+    final base = textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary);
     return Text.rich(
       TextSpan(
         style: base,

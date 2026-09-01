@@ -18,7 +18,10 @@ class FakeCommunityRepository implements CommunityRepository {
     nickname: 'travel_hyewon',
   );
   static final _yejin = CommunityAuthor(userId: 'u-3', nickname: 'yejin_go');
-  static final _dahye = CommunityAuthor(userId: 'u-4', nickname: 'dahye_travel');
+  static final _dahye = CommunityAuthor(
+    userId: 'u-4',
+    nickname: 'dahye_travel',
+  );
 
   static final _feedPosts = <CommunityPost>[
     CommunityPost(
@@ -28,7 +31,8 @@ class FakeCommunityRepository implements CommunityRepository {
       regionName: '서울',
       badge: const CommunityBadge(label: '스냅 챌린지'),
       title: '한복 입고 인생 사진 남기기 🌸',
-      content: '날씨 좋은 날 경복궁 다녀왔어요. 근정전 앞 광장에서 찍은 사진인데 정말 마음에 드네요. '
+      content:
+          '날씨 좋은 날 경복궁 다녀왔어요. 근정전 앞 광장에서 찍은 사진인데 정말 마음에 드네요. '
           '다들 한복 입고 방문해보세요!',
       likeCount: 142,
       commentCount: 28,
@@ -54,7 +58,8 @@ class FakeCommunityRepository implements CommunityRepository {
       author: _yejin,
       regionName: '전북 전주',
       title: '고풍스러운 붉은 벽돌의 정취 ⛪',
-      content: '경기전 맞은편에 의젓이 아름다운 로매네스크 양식의 성당입니다. '
+      content:
+          '경기전 맞은편에 의젓이 아름다운 로매네스크 양식의 성당입니다. '
           '전주 한옥마을 초입에 있어서 들르기 좋은 곳이에요!',
       likeCount: 78,
       commentCount: 9,

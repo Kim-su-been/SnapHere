@@ -41,7 +41,11 @@ class CommunityEmptyState extends StatelessWidget {
               child: Icon(icon, size: 40, color: AppColors.brand),
             ),
             const SizedBox(height: AppSpacing.xl),
-            Text(title, style: textTheme.titleMedium, textAlign: TextAlign.center),
+            Text(
+              title,
+              style: textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: AppSpacing.sm),
             Text(
               description,

@@ -127,9 +127,8 @@ class _Avatar extends StatelessWidget {
       ),
       child: Text(
         author.avatarLabel,
-        style: Theme.of(
-          context,
-        ).textTheme.bodySmall?.copyWith(color: AppColors.textPrimary),
+        style: Theme.of(context).textTheme.bodySmall
+            ?.copyWith(color: AppColors.textPrimary),
       ),
     );
   }
@@ -153,9 +152,8 @@ class _BadgeChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: Theme.of(
-          context,
-        ).textTheme.bodySmall?.copyWith(color: AppColors.textPrimary),
+        style: Theme.of(context).textTheme.bodySmall
+            ?.copyWith(color: AppColors.textPrimary),
       ),
     );
   }
@@ -222,13 +220,16 @@ class _ImageCountChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.photo_library_outlined, size: 12, color: Colors.white),
+          const Icon(
+            Icons.photo_library_outlined,
+            size: 12,
+            color: Colors.white,
+          ),
           const SizedBox(width: AppSpacing.xs),
           Text(
             '+${count - 1}',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: Colors.white),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: Colors.white),
           ),
         ],
       ),

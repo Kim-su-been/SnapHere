@@ -25,10 +25,7 @@ class AppShell extends StatelessWidget {
         },
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home_outlined), label: '홈'),
-          NavigationDestination(
-            icon: Icon(Icons.trending_up),
-            label: '커뮤니티',
-          ),
+          NavigationDestination(icon: Icon(Icons.trending_up), label: '커뮤니티'),
           NavigationDestination(
             icon: Icon(Icons.add_circle_outline),
             label: '업로드',

@@ -76,9 +76,8 @@ class _SearchEntry extends StatelessWidget {
             const SizedBox(width: AppSpacing.sm),
             Text(
               '검색어를 입력하세요',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: AppColors.textSecondary),
             ),
           ],
         ),
@@ -233,9 +232,8 @@ class _SortRow extends ConsumerWidget {
       children: [
         Text(
           sectionTitle ?? '',
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: AppColors.textSecondary),
         ),
         DropdownButtonHideUnderline(
           child: DropdownButton<CommunitySort>(

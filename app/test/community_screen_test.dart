@@ -15,12 +15,11 @@ class _StubCommunityRepository implements CommunityRepository {
   _StubCommunityRepository({
     this.feedPosts = const [],
     this.searchPosts = const [],
-    this.recent = const ['전주 한옥마을'],
   });
 
   final List<CommunityPost> feedPosts;
   final List<CommunityPost> searchPosts;
-  List<String> recent;
+  List<String> recent = ['전주 한옥마을'];
 
   @override
   Future<CommunityFeed> fetchFeed({
