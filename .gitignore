@@ -243,6 +243,8 @@ Desktop.ini
 .env.*
 !.env.example
 !.env.*.example
+!.env.sample
+!.env.*.sample
 *.pem
 *.key
 *.p12
