@@ -33,7 +33,15 @@ public enum ErrorCode {
     MEDIA_COUNT_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "error.media.countInvalid"),
     MEDIA_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "error.media.tooLarge"),
     MEDIA_TYPE_UNSUPPORTED(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "error.media.typeUnsupported"),
-    MEDIA_NOT_FOUND(HttpStatus.UNPROCESSABLE_ENTITY, "error.media.notFound");
+    MEDIA_NOT_FOUND(HttpStatus.UNPROCESSABLE_ENTITY, "error.media.notFound"),
+
+    // 장소 · 이벤트 (PLC-*, EVT-*)
+    PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "error.place.notFound"),
+    PLACE_INVALID_COORDINATE(HttpStatus.UNPROCESSABLE_ENTITY, "error.place.invalidCoordinate"),
+    EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "error.event.notFound"),
+
+    // 게시글 (PST-*)
+    POST_INVALID_TAKEN_AT(HttpStatus.UNPROCESSABLE_ENTITY, "error.post.invalidTakenAt");
 
     private final HttpStatus status;
     private final String messageKey;
