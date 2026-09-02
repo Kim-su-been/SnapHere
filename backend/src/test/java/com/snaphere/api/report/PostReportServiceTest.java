@@ -2,6 +2,7 @@ package com.snaphere.api.report;
 
 import com.snaphere.api.common.error.ApiException;
 import com.snaphere.api.common.error.ErrorCode;
+import com.snaphere.api.post.PostStatus;
 import com.snaphere.api.post.entity.PostEntity;
 import com.snaphere.api.post.repository.PostRepository;
 import com.snaphere.api.post.tier.PhotoSource;
@@ -30,7 +31,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 게시글 신고 — PST-043, PST-044 */
+/** 게시글 신고 — PST-043, PST-044, PST-045 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class PostReportServiceTest {
@@ -51,6 +52,7 @@ class PostReportServiceTest {
         when(reports.existsByReporterIdAndTargetTypeAndTargetId(any(), any(), anyLong()))
                 .thenReturn(false);
         when(reports.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+        when(reports.countByTargetTypeAndTargetId(any(), anyLong())).thenReturn(1L);
     }
 
     private static PostEntity activePost() {
@@ -154,5 +156,53 @@ class PostReportServiceTest {
                 new CreateReportRequest(ReportReason.OTHER, null));
 
         assertThat(receipt.status()).isEqualTo("PENDING");
+    }
+
+    // ───────────────────────────────────────────── 자동 블라인드 (PST-045)
+
+    @Test
+    @DisplayName("신고 3건에 도달하면 게시글을 가린다")
+    void 자동_블라인드() {
+        PostEntity post = activePost();
+        when(posts.findById(POST_ID)).thenReturn(Optional.of(post));
+        when(reports.countByTargetTypeAndTargetId(ReportTargetType.POST, POST_ID)).thenReturn(3L);
+
+        service.report(POST_ID, REPORTER, request(ReportReason.SPAM));
+
+        assertThat(post.getStatus()).isEqualTo(PostStatus.HIDDEN);
+    }
+
+    @Test
+    @DisplayName("2건까지는 가리지 않는다")
+    void 기준_미달() {
+        PostEntity post = activePost();
+        when(posts.findById(POST_ID)).thenReturn(Optional.of(post));
+        when(reports.countByTargetTypeAndTargetId(ReportTargetType.POST, POST_ID)).thenReturn(2L);
+
+        service.report(POST_ID, REPORTER, request(ReportReason.SPAM));
+
+        assertThat(post.getStatus()).isEqualTo(PostStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("가려도 접수증 상태는 PENDING 이다 — 운영자 검토가 남아 있다")
+    void 가려도_접수증은_PENDING() {
+        when(reports.countByTargetTypeAndTargetId(any(), anyLong())).thenReturn(5L);
+
+        assertThat(service.report(POST_ID, REPORTER, request(ReportReason.SPAM)).status())
+                .isEqualTo("PENDING");
+    }
+
+    @Test
+    @DisplayName("가리기는 조용히 한다 — 언제 가려지는지 응답으로 알 수 없다")
+    void 가리기는_응답에_없음() {
+        PostEntity post = activePost();
+        when(posts.findById(POST_ID)).thenReturn(Optional.of(post));
+        when(reports.countByTargetTypeAndTargetId(any(), anyLong())).thenReturn(3L);
+
+        ReportReceiptResponse under = service.report(POST_ID, REPORTER, request(ReportReason.SPAM));
+
+        assertThat(post.getStatus()).isEqualTo(PostStatus.HIDDEN);
+        assertThat(under.status()).isEqualTo("PENDING");
     }
 }
