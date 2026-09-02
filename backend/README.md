@@ -53,9 +53,20 @@ backend/
 | `common.error.ErrorCode` | 코드 기반 에러 분기 | `SYS-002` |
 | `common.error.ErrorBody` | 실패 봉투 본문 (`violations`, `retryAfterSec`) | `SYS-002` |
 | `common.error.GlobalExceptionHandler` | 모든 예외를 실패 봉투로 변환 | `SYS-001`, `SYS-002` |
+| `auth` | Google OIDC 로그인, 온보딩, JWT·리프레시 토큰 회전, 로그아웃, 경로 인가 | `AUTH-001`~`AUTH-011`, `AUTH-014` |
+
+인증 실행 전에는 PostgreSQL 16 데이터베이스와 아래 환경 변수가 필요합니다. `SNAPHERE_JWT_SECRET`은
+32바이트 이상인 무작위 값으로 설정하고, 모바일 앱의 Google OAuth 클라이언트 ID를 사용합니다.
+
+```text
+DB_URL=jdbc:postgresql://localhost:5432/snaphere
+DB_USERNAME=snaphere
+DB_PASSWORD=...
+GOOGLE_OAUTH_CLIENT_ID=...
+SNAPHERE_JWT_SECRET=...
+SNAPHERE_TERMS_VERSION=2026-08-01
+```
 
 ## 아직 없는 것
 
-- DB 연결 (PostgreSQL 16 + PostGIS 3) · JPA · 마이그레이션
-- 인증 (`AUTH-*`) — 구글 ID Token 검증, JWT 발급
 - 게시글 도메인 (`PST-001`~`PST-049`) — `docs/commit-convention.md`의 분할 계획 참고
