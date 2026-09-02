@@ -286,3 +286,16 @@ Desktop.ini
 **/Flutter/flutter_export_environment.sh
 **/Flutter/ephemeral/
 **/Runner/GeneratedPluginRegistrant.*
+
+# Java / Gradle (backend)
+backend/bin/
+backend/out/
+backend/build/
+backend/.gradle/
+*.class
+
+# Eclipse / VS Code Java 프로젝트 메타데이터
+.classpath
+.project
+.settings/
+.factorypath
