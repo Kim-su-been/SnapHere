@@ -18,7 +18,9 @@ import com.snaphere.api.post.repository.PostImageRepository;
 import com.snaphere.api.post.repository.PostTagRepository;
 import com.snaphere.api.post.repository.TagRepository;
 import com.snaphere.api.post.repository.TierLogRepository;
+import com.snaphere.api.reaction.BookmarkTargetType;
 import com.snaphere.api.reaction.LikeTargetType;
+import com.snaphere.api.reaction.repository.BookmarkRepository;
 import com.snaphere.api.reaction.repository.LikeRepository;
 import com.snaphere.api.user.AuthorSnapshot;
 import com.snaphere.api.user.AuthorSnapshotReader;
@@ -52,6 +54,7 @@ public class PostResponseAssembler {
     private final PlaceRepository places;
     private final TierLogRepository tierLogs;
     private final LikeRepository likes;
+    private final BookmarkRepository bookmarks;
     private final AuthorSnapshotReader authors;
     private final MediaUrlResolver mediaUrls;
 
@@ -61,6 +64,7 @@ public class PostResponseAssembler {
                                  PlaceRepository places,
                                  TierLogRepository tierLogs,
                                  LikeRepository likes,
+                                 BookmarkRepository bookmarks,
                                  AuthorSnapshotReader authors,
                                  MediaUrlResolver mediaUrls) {
         this.postImages = postImages;
@@ -69,6 +73,7 @@ public class PostResponseAssembler {
         this.places = places;
         this.tierLogs = tierLogs;
         this.likes = likes;
+        this.bookmarks = bookmarks;
         this.authors = authors;
         this.mediaUrls = mediaUrls;
     }
@@ -132,7 +137,8 @@ public class PostResponseAssembler {
                 place == null ? null : PlaceSummaryResponse.from(place),
                 images,
                 batch.likedPostIds == null ? null : batch.likedPostIds.contains(post.getPostId()),
-                null);
+                batch.bookmarkedPostIds == null
+                        ? null : batch.bookmarkedPostIds.contains(post.getPostId()));
     }
 
     /**
@@ -177,7 +183,7 @@ public class PostResponseAssembler {
                 .forEach((id, snapshot) -> authorMap.put(id, UserSummaryResponse.from(snapshot)));
 
         return new Batch(images, placeMap, authorMap, loadTags(postIds),
-                loadLiked(postIds, viewerId));
+                loadLiked(postIds, viewerId), loadBookmarked(postIds, viewerId));
     }
 
     /**
@@ -192,6 +198,15 @@ public class PostResponseAssembler {
         }
         return new LinkedHashSet<>(
                 likes.findLikedTargetIds(viewerId.get(), LikeTargetType.POST, postIds));
+    }
+
+    /** 요청자가 저장한 게시글. 비회원이면 null 이다. (CMU-023) */
+    private Set<Long> loadBookmarked(Collection<Long> postIds, Optional<UUID> viewerId) {
+        if (viewerId.isEmpty()) {
+            return null;
+        }
+        return new LinkedHashSet<>(bookmarks.findBookmarkedTargetIds(
+                viewerId.get(), BookmarkTargetType.POST, postIds));
     }
 
     private Map<Long, List<TagSummaryResponse>> loadTags(Collection<Long> postIds) {
@@ -242,7 +257,8 @@ public class PostResponseAssembler {
             Map<Long, PlaceEntity> places,
             Map<UUID, UserSummaryResponse> authors,
             Map<Long, List<TagSummaryResponse>> tags,
-            Set<Long> likedPostIds
+            Set<Long> likedPostIds,
+            Set<Long> bookmarkedPostIds
     ) {
     }
 }
