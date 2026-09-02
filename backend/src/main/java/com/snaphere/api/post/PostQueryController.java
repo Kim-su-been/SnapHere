@@ -19,10 +19,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * API-PST-004 · API-PST-006 — 게시글 목록·상세 조회.
+ * API-PST-004 · API-PST-005 · API-PST-006 — 게시글 목록·인기·상세 조회.
  *
  * <p>기능 명세: 4.1 지역 커뮤니티 · 5.1 본문
- * <p>요구사항: PST-021, PST-033, PST-034, PST-042, SOC-013, PLC-013
+ * <p>요구사항: PST-021, PST-033, PST-034, PST-035, PST-042, SOC-013, PLC-013
  *
  * <p>{@code GET /api/v1/**} 는 SecurityConfig 에서 permitAll 이라 토큰 없이 들어온다.
  * 그래서 {@code require} 가 아니라 {@code optional} 을 쓴다 — {@code require} 를 쓰면
@@ -61,6 +61,27 @@ public class PostQueryController {
 
         CursorPage<PostSummaryResponse> page =
                 postFeedService.list(areaCode, placeId, tag, period, cursor, size);
+
+        return ResponseEntity.ok(ApiResponse.ok(page,
+                TraceIdFilter.currentTraceId(httpRequest)));
+    }
+
+    /**
+     * 기간별 인기 게시글. (PST-035)
+     *
+     * <p>경로가 {@code /posts/popular} 라 {@code /posts/{postId}} 와 겹쳐 보이지만, Spring 은
+     * 고정 경로를 경로 변수보다 먼저 맞춘다.
+     */
+    @GetMapping("/popular")
+    public ResponseEntity<ApiResponse<CursorPage<PostSummaryResponse>>> popular(
+            @RequestParam PostFeedPeriod period,
+            @RequestParam(required = false) Integer areaCode,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer size,
+            HttpServletRequest httpRequest) {
+
+        CursorPage<PostSummaryResponse> page =
+                postFeedService.popular(period, areaCode, cursor, size);
 
         return ResponseEntity.ok(ApiResponse.ok(page,
                 TraceIdFilter.currentTraceId(httpRequest)));

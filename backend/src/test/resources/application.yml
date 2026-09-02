@@ -19,6 +19,9 @@ spring:
 snaphere:
   # 테스트는 DB 스키마를 Hibernate 로 만드므로 JPA 구현체를 그대로 쓴다
   stub-data: false
+  # 주기 배치를 끈다. 컨텍스트 로드 테스트 중에 집계 배치가 도는 것을 막는다 (JOB-013)
+  jobs:
+    enabled: false
   auth:
     google-client-id: test-client-id
     jwt-secret: test-only-secret-that-is-at-least-thirty-two-bytes
