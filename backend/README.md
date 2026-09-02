@@ -43,7 +43,7 @@ backend/
 
 ## 지금 구현된 것
 
-골격만 있다. 엔드포인트는 아직 없다.
+### 공통
 
 | 클래스 | 역할 | 요구사항 |
 | --- | --- | --- |
@@ -54,8 +54,33 @@ backend/
 | `common.error.ErrorBody` | 실패 봉투 본문 (`violations`, `retryAfterSec`) | `SYS-002` |
 | `common.error.GlobalExceptionHandler` | 모든 예외를 실패 봉투로 변환 | `SYS-001`, `SYS-002` |
 
+### 엔드포인트
+
+| API ID | 메서드 · 경로 | 기능 명세 | 요구사항 |
+| --- | --- | --- | --- |
+| `API-PST-001` | `POST /api/v1/media/presigned-urls` | 2.3 사진·캡션·태그 > 업로드 실행 | `PST-013`~`PST-015`, `USER-004`, `SYS-020` |
+
+## 로컬에서 업로드 URL 발급 해보기
+
+인증(`AUTH-001`)이 아직 없어서 임시로 `X-Debug-User-Id` 헤더를 로그인 사용자로 취급한다.
+**인증이 들어오면 `DevHeaderCurrentUserProvider` 는 삭제한다.**
+
+```bash
+curl -X POST http://localhost:8080/api/v1/media/presigned-urls \
+  -H 'Content-Type: application/json' \
+  -H 'X-Debug-User-Id: 1' \
+  -d '{"purpose":"POST_IMAGE","files":[{"mimeType":"image/jpeg","sizeBytes":1048576}]}'
+```
+
+`snaphere.media.provider` 가 `stub` 이면 실제 S3 없이 형태만 같은 주소를 돌려준다.
+S3를 쓰려면 환경변수로 바꾼다. 자격증명은 설정 파일에 적지 않고 SDK 기본 체인을 쓴다.
+
+```bash
+MEDIA_PROVIDER=s3 MEDIA_S3_BUCKET=snaphere-media MEDIA_S3_REGION=ap-northeast-2 ./gradlew bootRun
+```
+
 ## 아직 없는 것
 
 - DB 연결 (PostgreSQL 16 + PostGIS 3) · JPA · 마이그레이션
-- 인증 (`AUTH-*`) — 구글 ID Token 검증, JWT 발급
-- 게시글 도메인 (`PST-001`~`PST-049`) — `docs/commit-convention.md`의 분할 계획 참고
+- 인증 (`AUTH-*`) — 구글 ID Token 검증, JWT 발급. 지금은 `X-Debug-User-Id` 임시 통로
+- 게시글 도메인 나머지 (`PST-001`~`PST-012`, `PST-016`~`PST-049`) — `docs/commit-convention.md`의 분할 계획 참고

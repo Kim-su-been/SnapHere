@@ -22,6 +22,15 @@ snaphere:
     max-size: 50
   cors:
     allowed-origins: ""            # SYS-014 — 환경별 allowlist, 와일드카드 금지
+  media:
+    # provider=stub 이면 실제 업로드 없이 형태만 같은 주소를 준다 (로컬 개발용)
+    provider: ${MEDIA_PROVIDER:stub}
+    bucket: ${MEDIA_S3_BUCKET:}
+    region: ${MEDIA_S3_REGION:ap-northeast-2}
+    public-base-url: ${MEDIA_PUBLIC_BASE_URL:}
+    presign-ttl: 5m                # SYS-020 — 서명 주소 유효 시간
+    max-file-size-bytes: 10485760  # PST-015 — 장당 10MB
+    # AWS 자격증명은 여기 적지 않는다. SDK 기본 체인(환경변수·프로파일·인스턴스 역할)을 쓴다
 
 logging:
   level:
