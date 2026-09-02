@@ -168,5 +168,15 @@ PR 제목은 기존 규칙대로 `[<type>](<scope>): <subject>` 를 쓴다.
 
 | # | 브랜치 | 상태 |
 | --- | --- | --- |
-| 0 | `feature/backend-post` | 작업 중 |
-| 1~6 | — | 대기 |
+| 0 | `feature/backend-post` | 머지 (PR #5) |
+| 1 | `feature/backend-post-pst013-015` | 머지 (PR #11) |
+| 2 | `feature/backend-post-pst022-028` | 머지 (PR #11) |
+| — | `chore/backend-database` | 작업 중 — 스키마·엔티티. 3~6번의 선행 작업 |
+| 3 | `feature/backend-post-pst001-021` | 대기 |
+| 4 | `feature/backend-post-pst033-039` | 대기 |
+| 5 | `feature/backend-post-pst040-042` | 대기 |
+| 6 | `feature/backend-post-pst043-045` | 대기 |
+
+1·2번은 DB 를 쓰지 않는 부분만 골라낸 것이다 — 업로드는 S3 서명만 만들고, 등급 미리보기는
+좌표 거리만 계산한다. 3번부터는 실제 INSERT 가 필요해서 `chore/backend-database` 가 먼저 들어가야 한다.
+그 브랜치는 요구사항을 구현하지 않으므로 요구사항 ID 를 브랜치 이름에 넣지 않고 `chore/` 로 둔다.
