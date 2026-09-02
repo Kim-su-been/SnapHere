@@ -43,7 +43,7 @@ public class PostQueryService {
         if (viewCounter.countIfFirstToday(postId, viewerId)) {
             posts.increaseViewCount(postId);
         }
-        return assembler.detail(post);
+        return assembler.detail(post, viewerId);
     }
 
     /**

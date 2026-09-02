@@ -15,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * API-PST-004 — 게시글 목록 조회. (PST-034)
@@ -48,7 +50,8 @@ public class PostFeedService {
 
     @Transactional(readOnly = true)
     public CursorPage<PostSummaryResponse> list(Integer areaCode, Long placeId, String tag,
-                                                PostFeedPeriod period, String cursor, Integer size) {
+                                                PostFeedPeriod period, String cursor, Integer size,
+                                                Optional<UUID> viewerId) {
         Long tagId = resolveTagId(tag);
         if (tag != null && !tag.isBlank() && tagId == null) {
             // 아무도 쓰지 않은 태그다. 에러가 아니라 결과가 없는 것이다 (CMU-030).
@@ -76,7 +79,7 @@ public class PostFeedService {
         String nextCursor = hasNext
                 ? new PostCursor(last.getCreatedAt(), last.getPostId()).encode()
                 : null;
-        return CursorPage.of(assembler.summaries(page), nextCursor);
+        return CursorPage.of(assembler.summaries(page, viewerId), nextCursor);
     }
 
     private Long resolveTagId(String tag) {
@@ -99,7 +102,8 @@ public class PostFeedService {
      */
     @Transactional(readOnly = true)
     public CursorPage<PostSummaryResponse> popular(PostFeedPeriod period, Integer areaCode,
-                                                   String cursor, Integer size) {
+                                                   String cursor, Integer size,
+                                                   Optional<UUID> viewerId) {
         int pageSize = paging.resolve(size);
         PostRankCursor decoded = PostRankCursor.decode(cursor);
         PostFeedPeriod window = period == null ? PostFeedPeriod.DEFAULT : period;
@@ -119,13 +123,14 @@ public class PostFeedService {
             Integer lastRank = rankings.findRankNo(window, page.get(page.size() - 1).getPostId());
             nextCursor = lastRank == null ? null : new PostRankCursor(lastRank).encode();
         }
-        return CursorPage.of(assembler.summaries(page), nextCursor);
+        return CursorPage.of(assembler.summaries(page, viewerId), nextCursor);
     }
 
     /** 장소 상세의 게시글 그리드. (PLC-013) */
     @Transactional(readOnly = true)
-    public CursorPage<PostSummaryResponse> listByPlace(long placeId, String cursor, Integer size) {
-        return list(null, placeId, null, PostFeedPeriod.ALL, cursor, size);
+    public CursorPage<PostSummaryResponse> listByPlace(long placeId, String cursor, Integer size,
+                                                       Optional<UUID> viewerId) {
+        return list(null, placeId, null, PostFeedPeriod.ALL, cursor, size, viewerId);
     }
 
 }

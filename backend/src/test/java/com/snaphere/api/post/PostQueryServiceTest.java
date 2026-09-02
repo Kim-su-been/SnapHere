@@ -103,7 +103,7 @@ class PostQueryServiceTest {
 
         service.detail(POST_ID, Optional.of(AUTHOR));
 
-        verify(assembler).detail(any());
+        verify(assembler).detail(any(), any());
     }
 
     @Test
@@ -113,7 +113,7 @@ class PostQueryServiceTest {
 
         service.detail(POST_ID, Optional.empty());
 
-        verify(assembler).detail(any());
+        verify(assembler).detail(any(), any());
     }
 
     @Test
