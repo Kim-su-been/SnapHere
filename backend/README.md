@@ -48,18 +48,30 @@ backend/src/main/java/com/snaphere/api/
 │   ├── security/   # 현재 로그인 사용자 조회 (AUTH-011)
 │   └── web/        # 공통 응답 봉투·커서 페이징·요청 추적 (SYS-001, SYS-003, SYS-016)
 ├── auth/           # 구글 로그인·JWT·리프레시 토큰 회전 (AUTH-001~011, AUTH-014)
-├── media/          # 업로드 URL 발급 (PST-013~015)
+├── media/          # 업로드 URL 발급·객체 저장소 (PST-013~015)
 ├── place/          # 장소·지역
 │   ├── entity/     #   regions · sigungu · places
 │   ├── repository/ #   조회. 공간 조건은 네이티브 쿼리
 │   ├── jpa/        #   조회 포트의 JPA 구현
 │   └── stub/       #   DB 없이 돌릴 때의 고정 데이터
-└── post/           # 게시글
-    ├── entity/     #   posts · post_images · tags · post_tags · tier_logs
-    ├── repository/ #   조회. 목록은 전부 커서 기반
-    ├── jpa/        #   판정 근거 적재 (tier_logs)
-    └── tier/       #   등급 판정 규칙 (PST-022~028)
+├── post/           # 게시글
+│   ├── entity/     #   posts · post_images · tags · post_tags · tier_logs
+│   ├── repository/ #   조회. 목록은 전부 커서 기반
+│   ├── jpa/        #   판정 근거 적재 (tier_logs)
+│   ├── tier/       #   등급 판정 규칙 (PST-022~028)
+│   ├── media/      #   썸네일·EXIF 제거·해시 후처리 (PST-019~021)
+│   ├── event/      #   커밋 이후 처리를 위한 도메인 이벤트
+│   └── dto/        #   요청·응답
+├── user/           # 작성자 조회 포트 (auth 엔티티 의존을 가르는 경계)
+├── visit/          # 방문 자동 기록 포트 (VST-001) — 구현 대기
+├── badge/          # 뱃지 획득 포트 (BDG-005) — 구현 대기
+└── report/         # 업로드 정지 조회 포트 (PST-032) — 구현 대기
 ```
+
+`visit`·`badge`·`report` 는 인터페이스와 아무것도 하지 않는 구현만 있다. 해당 테이블이 다른
+담당 범위여서 스키마가 없는데, 게시글 생성 응답의 계약(`visitRecorded`, `earnedBadges`)을
+비워 둘 수는 없어서 포트로 남겼다. 실제 구현을 추가할 때 `NoOp*` 파일을 지운다 — 조건부
+등록을 걸지 않았으므로 구현이 하나 더 생기면 애플리케이션이 뜨지 않고 중복 빈을 알려 준다.
 
 ## 데이터베이스 준비
 
@@ -133,6 +145,7 @@ MEDIA_PUBLIC_BASE_URL=https://cdn.example.com
 | `API-AUTH-001`~`005` | `/api/v1/auth/*` | 9.1 로그인 · 9.2 온보딩 | `AUTH-001`~`AUTH-011`, `AUTH-014` |
 | `API-PST-001` | `POST /api/v1/media/presigned-urls` | 2.3 사진·캡션·태그 > 업로드 실행 | `PST-013`~`PST-015`, `USER-004`, `SYS-020` |
 | `API-PST-002` | `POST /api/v1/posts/tier-preview` | 2.2 위치 확인 > 등급 미리보기 | `PST-022`~`PST-028`, `PST-046`~`PST-049` |
+| `API-PST-003` | `POST /api/v1/posts` | 2.3 사진·캡션·태그 > 게시글 등록 | `PST-001`~`PST-004`, `PST-016`~`PST-021`, `PST-029`~`PST-031` |
 
 ### 위치 신뢰 등급 (`PST-022`~`PST-026`)
 
@@ -149,6 +162,26 @@ MEDIA_PUBLIC_BASE_URL=https://cdn.example.com
 
 **인증 반경 우선순위** (`PLC-022`, `EVT-023`) — 이벤트별 값 → 그 지역 기본값 → 2,000m.
 일반 게시글은 장소에 설정된 값(관광지 500m / 사용자 장소 100m)을 쓴다.
+
+### 이미지 후처리 (`PST-019`~`PST-021`)
+
+썸네일 생성·EXIF 제거·해시 계산은 등록 응답과 분리해 돌린다. 게시글 커밋 이후에
+`PostCreatedEvent` 를 받아 `imageProcessingExecutor` 풀에서 처리한다.
+
+| 단계 | 객체 키 | 이유 |
+| --- | --- | --- |
+| 원본 보관 | `originals/{키}` | 좌표가 남은 사본. 심사 근거이고 후처리를 다시 돌릴 수 있다 (`PST-020` 비고) |
+| 공개 이미지 | `{키}` (덮어쓰기) | 새 키를 만들면 저장된 `image_key` 와 앱이 든 주소가 어긋난다 |
+| 썸네일 | `thumbs/{키}` | 긴 변 480px |
+
+EXIF 는 태그를 하나씩 지우지 않는다. `ImageIO` 로 픽셀만 읽어 다시 인코딩하면 EXIF·GPS·기기
+정보가 애초에 옮겨지지 않는다. 지울 태그 목록을 관리할 필요가 없고 라이브러리도 더 붙이지 않는다.
+
+해시는 **원본** 바이트로 계산한다. 재인코딩 결과로 계산하면 JDK 인코더가 바뀔 때 같은 사진의
+해시가 달라져 중복 판정(`PST-031`)이 무너진다.
+
+후처리가 실패해도 게시글은 남는다. 사진은 원본 그대로 보이고 썸네일·해시만 비며, 목록에서는
+원본 주소와 기본 비율을 대신 준다. 한 장이 실패해도 나머지 사진은 계속 처리한다.
 
 ## 로컬에서 호출해 보기
 
@@ -177,7 +210,8 @@ curl -X POST http://localhost:8080/api/v1/posts/tier-preview \
 ## 아직 없는 것
 
 - 게시글 등록·조회·수정·삭제 (`PST-001`~`PST-012`, `PST-016`~`PST-021`, `PST-029`~`PST-045`) — `docs/commit-convention.md` 의 분할 계획 참고
-- `events` 테이블. 이벤트 도메인(EVT)은 다른 담당 범위라 아직 스키마가 없고,
-  `place/stub/StubEventData` 의 고정 데이터를 읽는다. 판정 경로를 끊지 않기 위한 임시다
+- 게시글 조회·수정·삭제 (`API-PST-004`~`API-PST-013`) — 슬라이스 4~6
+- `events`·`visits`·`user_badges`·`reports` 테이블. 각각 다른 담당 범위라 아직 스키마가 없고,
+  포트와 아무것도 하지 않는 구현만 두었다 (`place/stub/StubEventData`, `visit`, `badge`, `report`)
 - TourAPI 적재 (`PLC-003`). `places` 테이블은 만들어져 있지만 채우는 배치가 없다.
   `V4` 로 시도 마스터만 들어간다

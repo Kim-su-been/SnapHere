@@ -172,7 +172,7 @@ PR 제목은 기존 규칙대로 `[<type>](<scope>): <subject>` 를 쓴다.
 | 1 | `feature/backend-post-pst013-015` | 머지 (PR #11) |
 | 2 | `feature/backend-post-pst022-028` | 머지 (PR #11) |
 | — | `chore/backend-database` | 작업 중 — 스키마·엔티티. 3~6번의 선행 작업 |
-| 3 | `feature/backend-post-pst001-021` | 대기 |
+| 3 | `feature/backend-post-pst001-021` | 작업 중 — 커밋 3개 |
 | 4 | `feature/backend-post-pst033-039` | 대기 |
 | 5 | `feature/backend-post-pst040-042` | 대기 |
 | 6 | `feature/backend-post-pst043-045` | 대기 |

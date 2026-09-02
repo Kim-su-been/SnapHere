@@ -25,6 +25,7 @@ import com.snaphere.api.post.entity.PostEntity;
 import com.snaphere.api.post.entity.PostImageEntity;
 import com.snaphere.api.post.entity.PostTagEntity;
 import com.snaphere.api.post.entity.TagEntity;
+import com.snaphere.api.post.event.PostCreatedEvent;
 import com.snaphere.api.post.repository.PostImageRepository;
 import com.snaphere.api.post.repository.PostRepository;
 import com.snaphere.api.post.repository.PostTagRepository;
@@ -39,6 +40,7 @@ import com.snaphere.api.post.tier.VerifyRadiusResolver;
 import com.snaphere.api.user.AuthorSnapshot;
 import com.snaphere.api.user.AuthorSnapshotReader;
 import com.snaphere.api.visit.VisitRecorder;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -78,6 +80,7 @@ public class PostCreateService {
     private final AuthorSnapshotReader authors;
     private final VisitRecorder visitRecorder;
     private final BadgeAwarder badgeAwarder;
+    private final ApplicationEventPublisher eventPublisher;
 
     public PostCreateService(PostRepository posts,
                              PostImageRepository postImages,
@@ -93,7 +96,8 @@ public class PostCreateService {
                              MediaUrlResolver mediaUrls,
                              AuthorSnapshotReader authors,
                              VisitRecorder visitRecorder,
-                             BadgeAwarder badgeAwarder) {
+                             BadgeAwarder badgeAwarder,
+                             ApplicationEventPublisher eventPublisher) {
         this.posts = posts;
         this.postImages = postImages;
         this.postTags = postTags;
@@ -109,6 +113,7 @@ public class PostCreateService {
         this.authors = authors;
         this.visitRecorder = visitRecorder;
         this.badgeAwarder = badgeAwarder;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -148,6 +153,10 @@ public class PostCreateService {
         List<AwardedBadge> awarded = badgeAwarder.awardForPost(
                 userId, post.getPostId(), place.getPlaceId(), request.eventId(),
                 decision.tier().eligibleForBadge());
+
+        // 썸네일·EXIF 제거·해시 계산은 응답과 분리한다. 커밋 이후에 시작하므로 후처리
+        // 스레드가 방금 만든 행을 볼 수 있다 (PST-019, PST-020).
+        eventPublisher.publishEvent(new PostCreatedEvent(post.getPostId(), userId));
 
         return buildResponse(post, place, savedImages, resolvedTags, savedTagLinks,
                 decision, visitRecorded, awarded);
