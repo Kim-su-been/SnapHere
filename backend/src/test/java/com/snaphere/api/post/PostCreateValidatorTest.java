@@ -35,7 +35,7 @@ class PostCreateValidatorTest {
                     "stub", "b", "ap-northeast-2", "https://cdn.test", Duration.ofMinutes(5), 1)));
 
     private static PostImageRequest image(UUID owner, int sortOrder) {
-        return new PostImageRequest("posts/" + owner + "/img" + sortOrder + ".webp", sortOrder, null);
+        return new PostImageRequest("posts/" + owner + "/img" + sortOrder + ".webp", sortOrder, null, null);
     }
 
     private static CreatePostRequest request(List<PostImageRequest> images) {
@@ -93,8 +93,8 @@ class PostCreateValidatorTest {
     @DisplayName("정렬 순서가 겹치면 POST_IMAGE_REQUIRED")
     void 정렬_순서_중복() {
         List<PostImageRequest> images = List.of(
-                new PostImageRequest("posts/" + USER + "/a.webp", 1, null),
-                new PostImageRequest("posts/" + USER + "/b.webp", 1, null));
+                new PostImageRequest("posts/" + USER + "/a.webp", 1, null, null),
+                new PostImageRequest("posts/" + USER + "/b.webp", 1, null, null));
         assertThatThrownBy(() -> validator.validateImages(request(images), USER))
                 .satisfies(t -> assertThat(codeOf(t)).isEqualTo(ErrorCode.POST_IMAGE_REQUIRED));
     }
@@ -112,8 +112,8 @@ class PostCreateValidatorTest {
     @DisplayName("같은 키를 두 번 보내면 POST_IMAGE_REQUIRED")
     void 같은_키_중복() {
         List<PostImageRequest> images = List.of(
-                new PostImageRequest("posts/" + USER + "/a.webp", 1, null),
-                new PostImageRequest("posts/" + USER + "/a.webp", 2, null));
+                new PostImageRequest("posts/" + USER + "/a.webp", 1, null, null),
+                new PostImageRequest("posts/" + USER + "/a.webp", 2, null, null));
         assertThatThrownBy(() -> validator.validateImages(request(images), USER))
                 .satisfies(t -> assertThat(codeOf(t)).isEqualTo(ErrorCode.POST_IMAGE_REQUIRED));
     }

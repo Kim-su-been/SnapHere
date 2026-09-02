@@ -45,7 +45,13 @@ public enum ErrorCode {
     POST_INVALID_TAKEN_AT(HttpStatus.UNPROCESSABLE_ENTITY, "error.post.invalidTakenAt"),
     POST_IMAGE_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "error.post.imageRequired"),
     POST_PLACE_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "error.post.placeRequired"),
-    POST_TAG_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "error.post.tagRequired");
+    POST_TAG_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "error.post.tagRequired"),
+
+    // 게시글 업로드 제한 (PST-029 ~ PST-032)
+    POST_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "error.post.dailyLimit"),
+    POST_PLACE_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "error.post.placeDailyLimit"),
+    POST_DUPLICATE_IMAGE(HttpStatus.CONFLICT, "error.post.duplicateImage"),
+    POST_UPLOAD_SUSPENDED(HttpStatus.FORBIDDEN, "error.post.uploadSuspended");
 
     private final HttpStatus status;
     private final String messageKey;

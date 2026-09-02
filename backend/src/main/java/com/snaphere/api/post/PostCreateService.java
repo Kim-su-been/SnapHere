@@ -72,6 +72,7 @@ public class PostCreateService {
     private final VerifyRadiusResolver radiusResolver;
     private final TierDecisionLogger decisionLogger;
     private final PostCreateValidator validator;
+    private final UploadLimitChecker limitChecker;
     private final TagService tagService;
     private final MediaUrlResolver mediaUrls;
     private final AuthorSnapshotReader authors;
@@ -87,6 +88,7 @@ public class PostCreateService {
                              VerifyRadiusResolver radiusResolver,
                              TierDecisionLogger decisionLogger,
                              PostCreateValidator validator,
+                             UploadLimitChecker limitChecker,
                              TagService tagService,
                              MediaUrlResolver mediaUrls,
                              AuthorSnapshotReader authors,
@@ -101,6 +103,7 @@ public class PostCreateService {
         this.radiusResolver = radiusResolver;
         this.decisionLogger = decisionLogger;
         this.validator = validator;
+        this.limitChecker = limitChecker;
         this.tagService = tagService;
         this.mediaUrls = mediaUrls;
         this.authors = authors;
@@ -116,6 +119,10 @@ public class PostCreateService {
         PlaceEntity place = loadPlace(request.placeId());
         EventSnapshot event = loadEvent(request.eventId());
         validator.validateTakenAt(request, now);
+
+        // 한도·정지·중복은 태그를 만들기 전에 본다. 거부될 요청 때문에 태그 마스터에 행이
+        // 남는 것을 막는다 (PST-029 ~ PST-032).
+        limitChecker.check(userId, place.getPlaceId(), images, now);
 
         List<TagEntity> resolvedTags = tagService.resolveAll(request.tagNamesOrEmpty());
         validator.validateTagCount(resolvedTags.size());
@@ -182,7 +189,8 @@ public class PostCreateService {
         List<PostImageEntity> entities = new ArrayList<>(images.size());
         for (PostImageRequest image : images) {
             entities.add(PostImageEntity.create(
-                    postId, image.imageKey(), image.sortOrder(), image.aspectRatio()));
+                    postId, image.imageKey(), image.sortOrder(),
+                    image.aspectRatio(), image.imageHash()));
         }
         List<PostImageEntity> saved = new ArrayList<>(postImages.saveAll(entities));
         saved.sort((a, b) -> Short.compare(a.getSortOrder(), b.getSortOrder()));
