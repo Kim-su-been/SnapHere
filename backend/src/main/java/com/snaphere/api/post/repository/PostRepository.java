@@ -54,6 +54,11 @@ public interface PostRepository extends JpaRepository<PostEntity, Long> {
     long countByUserIdAndPlaceIdAndStatusAndCreatedAtGreaterThanEqual(
             UUID userId, Long placeId, PostStatus status, OffsetDateTime from);
 
+    /** 조회수 증가. 엔티티를 읽어 고치면 같은 게시글 동시 조회에서 값이 밀린다. (PST-042) */
+    @Modifying
+    @Query("update PostEntity p set p.viewCount = p.viewCount + 1 where p.postId = :postId")
+    int increaseViewCount(@Param("postId") Long postId);
+
     @Modifying
     @Query("update PostEntity p set p.likeCount = p.likeCount + :delta where p.postId = :postId")
     int addLikeCount(@Param("postId") Long postId, @Param("delta") int delta);

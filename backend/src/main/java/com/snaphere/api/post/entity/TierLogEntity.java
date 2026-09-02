@@ -3,6 +3,9 @@ package com.snaphere.api.post.entity;
 import com.snaphere.api.post.tier.PhotoSource;
 import com.snaphere.api.post.tier.TierDecision;
 import com.snaphere.api.post.tier.TierInput;
+import com.snaphere.api.post.tier.TierPolicy;
+import com.snaphere.api.post.tier.TierReason;
+import com.snaphere.api.post.tier.TierThresholds;
 import com.snaphere.api.post.tier.TrustTier;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -90,6 +93,27 @@ public class TierLogEntity {
         log.decidedReason = decision.reason().name();
         log.decidedAt = decision.decidedAt();
         return log;
+    }
+
+    /**
+     * 저장된 스냅샷으로 판정을 그대로 재현한다. (PST-047)
+     *
+     * <p>스냅샷을 남긴 이유가 이것이다 — 등급 안내 화면은 "왜 이 등급인가"와 "어떻게 올리는가"를
+     * 함께 보여줘야 하는데(PST-049), 개선 방법은 저장하지 않고 판정 규칙에서 다시 뽑는다.
+     * 기준값도 스냅샷에서 오므로 규칙이 바뀐 뒤에도 그때의 결과가 나온다.
+     *
+     * <p>{@code place_has_coordinate} 는 별도 열로 남기지 않았다. 그 조건이 걸린 경우에만
+     * {@code decided_reason} 이 {@code PLACE_HAS_NO_COORDINATE} 이므로 이유에서 되돌린다.
+     */
+    public TierDecision toDecision() {
+        boolean placeHasCoordinate = !TierReason.PLACE_HAS_NO_COORDINATE.name().equals(decidedReason);
+        TierInput input = new TierInput(source, takenAt, distanceM, appliedRadiusM,
+                placeHasCoordinate, decidedAt);
+        return TierPolicy.decide(input, thresholds());
+    }
+
+    public TierThresholds thresholds() {
+        return new TierThresholds(thresholdHighMinutes, thresholdMediumDays);
     }
 
     public Long getTierLogId() {

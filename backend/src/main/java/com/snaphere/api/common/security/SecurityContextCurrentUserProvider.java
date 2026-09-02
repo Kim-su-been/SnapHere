@@ -8,23 +8,33 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+
 /**
  * JwtAuthenticationFilter 가 SecurityContext 에 넣어 둔 {@link AuthPrincipal} 을 읽는다. (AUTH-011)
  *
- * <p>SecurityConfig 가 {@code POST /api/v1/**} 를 authenticated() 로 두었으므로
+ * <p>SecurityConfig 가 {@code POST /api/v1/**} 를 authenticated() 로 두었으므로 쓰기 요청은
  * 여기까지 왔다면 이미 유효한 액세스 토큰이 검증된 상태다. 그래도 방어적으로 한 번 더 확인한다.
+ *
+ * <p>{@code GET /api/v1/**} 는 permitAll 이라 토큰 없이도 들어온다. 그래서 조회에서는
+ * {@link #optional} 을 써야 하고, {@link #require} 를 쓰면 비회원 조회가 401 이 된다.
  */
 @Component
 public class SecurityContextCurrentUserProvider implements CurrentUserProvider {
 
     @Override
     public CurrentUser require(HttpServletRequest request) {
+        return optional(request).orElseThrow(() -> new ApiException(ErrorCode.AUTH_REQUIRED));
+    }
+
+    @Override
+    public Optional<CurrentUser> optional(HttpServletRequest request) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null
                 || !authentication.isAuthenticated()
                 || !(authentication.getPrincipal() instanceof AuthPrincipal principal)) {
-            throw new ApiException(ErrorCode.AUTH_REQUIRED);
+            return Optional.empty();
         }
-        return new CurrentUser(principal.userId());
+        return Optional.of(new CurrentUser(principal.userId()));
     }
 }

@@ -42,6 +42,8 @@ public enum ErrorCode {
 
     // 게시글 (PST-*)
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "error.post.notFound"),
+    POST_NOT_VISIBLE(HttpStatus.NOT_FOUND, "error.post.notVisible"),
+    POST_NOT_AUTHOR(HttpStatus.FORBIDDEN, "error.post.notAuthor"),
     POST_INVALID_TAKEN_AT(HttpStatus.UNPROCESSABLE_ENTITY, "error.post.invalidTakenAt"),
     POST_IMAGE_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "error.post.imageRequired"),
     POST_PLACE_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "error.post.placeRequired"),
