@@ -10,6 +10,8 @@ import 'package:snap_here/src/features/auth/presentation/login_screen.dart';
 import 'package:snap_here/src/features/auth/presentation/login_required_screen.dart';
 import 'package:snap_here/src/features/auth/presentation/onboarding_screen.dart';
 import 'package:snap_here/src/features/auth/presentation/profile_setup_screen.dart';
+import 'package:snap_here/src/features/community/presentation/community_screen.dart';
+import 'package:snap_here/src/features/community/presentation/community_search_screen.dart';
 import 'package:snap_here/src/features/home/presentation/home_screen.dart';
 import 'package:snap_here/src/features/map/presentation/map_screen.dart';
 import 'package:snap_here/src/features/profile/presentation/profile_screen.dart';
@@ -89,11 +91,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
             ],
           ),
+          // Figma `Wireframe_v3`의 하단 탭 2번째 자리는 커뮤니티다.
+          // 기존 랭킹은 아래 최상위 라우트로 남겨 두었다.
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/rankings',
-                builder: (_, _) => const RankingsScreen(),
+                path: '/community',
+                builder: (_, _) => const CommunityScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'search',
+                    builder: (_, _) => const CommunitySearchScreen(),
+                  ),
+                ],
               ),
             ],
           ),
@@ -113,6 +123,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(path: '/upload', builder: (_, _) => const UploadScreen()),
+      // 하단 탭에서는 빠졌지만 화면은 그대로 살아 있다.
+      // 랭킹을 탭으로 되살릴지 이벤트로 바꿀지는 05 Event 작업 때 정한다.
+      GoRoute(path: '/rankings', builder: (_, _) => const RankingsScreen()),
       GoRoute(
         path: '/search',
         builder: (_, _) => const FeaturePlaceholder(
