@@ -73,6 +73,19 @@ public class PostImageEntity {
         return image;
     }
 
+    /**
+     * 사진 순서 변경. (PST-036)
+     *
+     * <p>{@code (post_id, sort_order)} UNIQUE 라 한 장씩 옮기면 중간에 값이 겹친다. 호출자가
+     * 전체 순서를 한 번에 정하고, 저장 전에 모든 사진의 값을 새로 매겨야 한다.
+     */
+    public void reorderTo(int sortOrder) {
+        if (sortOrder < 1 || sortOrder > MAX_PER_POST) {
+            throw new IllegalArgumentException("사진 순서는 1~" + MAX_PER_POST + " 이다: " + sortOrder);
+        }
+        this.sortOrder = (short) sortOrder;
+    }
+
     /** 후처리 배치가 채운다. (PST-019) */
     public void completePostProcessing(String thumbnailUrl, String imageHash, BigDecimal aspectRatio) {
         this.thumbnailUrl = thumbnailUrl;
