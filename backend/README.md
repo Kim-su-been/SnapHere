@@ -1,61 +1,40 @@
-# SnapHere API (backend)
+# SnapHere API
 
-Spring Boot 3.5 · Java 21 · Gradle (Kotlin DSL) 기반 백엔드 API 서버.
+Spring Boot 3.5, Java 21, PostgreSQL/PostGIS, Redis 기반 API 서버입니다. PLC-001~PLC-023에 필요한 지역·장소 동기화, 장소 조회/생성/저장/신고, 관리자 운영 API와 Google 로그인을 구현합니다.
 
-명세는 저장소 문서를 정본으로 삼는다.
+## 로컬 실행
 
-| 문서 | 위치 |
-| --- | --- |
-| 요구사항 · 기능 명세서 v1.1.3 | `docs/specs/snaphere-requirements-spec-v1.1.3.xlsx` |
-| API 명세서 · ERD v1.1.3 | `docs/specs/snaphere-api-spec-v1.1.3.xlsx` |
-| 데이터 설계 (DBML) v1.1.3 | `docs/db-schema.dbml` |
-| 명세 변경 이력 | `docs/spec-changelog.md` |
-| 커밋·브랜치 규칙 | `docs/commit-convention.md` |
-
-## 처음 받은 뒤 한 번
-
-Gradle 래퍼는 저장소에 넣지 않았다. 각자 한 번 만든다.
+루트의 `.env.sample`을 참고해 환경 변수를 설정한 뒤 DB와 Redis를 실행합니다.
 
 ```bash
+docker compose up -d postgres redis
 cd backend
-gradle wrapper --gradle-version 8.14
+./gradlew bootRun
 ```
 
-이후로는 래퍼로 실행한다.
+Windows에서는 `gradlew.bat`을 사용합니다. 기본 API 주소는 `http://localhost:8080/api/v1`입니다.
+
+필수 외부 연동 값:
+
+- `TOUR_API_SERVICE_KEY`: 한국관광공사 TourAPI 서비스 키
+- `GOOGLE_OAUTH_CLIENT_ID`: Google 로그인 OAuth 클라이언트 ID
+- `GOOGLE_MAPS_API_KEY`: 사용자 장소의 대한민국 범위 및 시도·시군구 판정을 위한 Geocoding API 키
+- 운영 환경의 `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`: PEM 형식 RSA 키. 로컬에서 비어 있으면 시작 시 임시 키를 생성합니다.
+
+## 주요 엔드포인트
+
+- 인증: `POST /api/v1/auth/google`, `/auth/onboarding`, `/auth/refresh`, `/auth/logout`
+- 지역/장소: `GET /api/v1/regions`, `/regions/{areaCode}/sigungu`, `/places`, `/places/nearby`, `/places/{placeId}`
+- 사용자 장소: `POST /api/v1/places`
+- 저장/신고: `PUT|DELETE /api/v1/places/{placeId}/bookmark`, `GET /api/v1/me/bookmarks`, `POST /api/v1/places/{placeId}/reports`
+- 운영: `POST /api/v1/admin/batches/PLACE_SYNC`, `GET /api/v1/admin/batches/{runId}`, `/admin/sync-logs`, `POST /api/v1/admin/places/{placeId}/moderation`
+
+장소 상세 응답에는 대표 이미지, 조회수, 랭킹, 주변 장소와 최신 게시글 최대 12개가 포함됩니다. 조회수는 Redis에 누적한 뒤 DB로 반영하며 Redis 장애 시 DB 증가로 대체합니다.
+
+## 검증
 
 ```bash
-./gradlew build      # 컴파일 + 테스트
-./gradlew bootRun    # 로컬 실행 (기본 8080)
+./gradlew test
 ```
 
-## 폴더 구조
-
-```text
-backend/
-└── src/main/java/com/snaphere/api/
-    ├── SnapHereApplication.java
-    └── common/
-        ├── error/     # 에러 코드 체계와 전역 예외 처리 (SYS-002)
-        └── web/       # 공통 응답 봉투·커서 페이징·요청 추적 (SYS-001, SYS-003, SYS-016)
-```
-
-도메인 패키지는 기능을 붙일 때 `com.snaphere.api.post` 처럼 추가한다.
-
-## 지금 구현된 것
-
-골격만 있다. 엔드포인트는 아직 없다.
-
-| 클래스 | 역할 | 요구사항 |
-| --- | --- | --- |
-| `common.web.ApiResponse` | 성공·실패 공통 응답 봉투 | `SYS-001` |
-| `common.web.CursorPage` | 커서 페이징 응답 | `SYS-003`, `SYS-004`, `CMU-010` |
-| `common.web.TraceIdFilter` | `X-Trace-Id` 수용·생성, MDC 주입 | `SYS-016` |
-| `common.error.ErrorCode` | 코드 기반 에러 분기 | `SYS-002` |
-| `common.error.ErrorBody` | 실패 봉투 본문 (`violations`, `retryAfterSec`) | `SYS-002` |
-| `common.error.GlobalExceptionHandler` | 모든 예외를 실패 봉투로 변환 | `SYS-001`, `SYS-002` |
-
-## 아직 없는 것
-
-- DB 연결 (PostgreSQL 16 + PostGIS 3) · JPA · 마이그레이션
-- 인증 (`AUTH-*`) — 구글 ID Token 검증, JWT 발급
-- 게시글 도메인 (`PST-001`~`PST-049`) — `docs/commit-convention.md`의 분할 계획 참고
+PostGIS 스키마 통합 테스트는 Docker가 사용 가능한 환경에서 Testcontainers로 실행됩니다.

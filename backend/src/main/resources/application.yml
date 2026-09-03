@@ -3,6 +3,17 @@
 spring:
   application:
     name: snaphere-api
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/snaphere}
+    username: ${DATABASE_USERNAME:snaphere}
+    password: ${DATABASE_PASSWORD:snaphere}
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
   jackson:
     default-property-inclusion: always
     time-zone: Asia/Seoul          # SYS-005
@@ -22,6 +33,30 @@ snaphere:
     max-size: 50
   cors:
     allowed-origins: ""            # SYS-014 — 환경별 allowlist, 와일드카드 금지
+  auth:
+    google-client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
+    jwt-issuer: ${JWT_ISSUER:snaphere-api}
+    jwt-private-key: ${JWT_PRIVATE_KEY:}
+    jwt-public-key: ${JWT_PUBLIC_KEY:}
+    admin-google-subjects: ${ADMIN_GOOGLE_SUBJECTS:}
+    terms-version: ${TERMS_VERSION:2026-08-01}
+  tour-api:
+    base-url: ${TOUR_API_BASE_URL:https://apis.data.go.kr/B551011}
+    service-key: ${TOUR_API_SERVICE_KEY:}
+    mobile-app: ${TOUR_API_MOBILE_APP:SnapHere}
+    mobile-os: ${TOUR_API_MOBILE_OS:ETC}
+  google:
+    geocoding-base-url: ${GOOGLE_GEOCODING_BASE_URL:https://maps.googleapis.com/maps/api/geocode/json}
+    maps-api-key: ${GOOGLE_MAPS_API_KEY:}
+  jobs:
+    place-sync-cron: ${PLACE_SYNC_CRON:0 0 4 * * *}
+    view-flush-cron: ${VIEW_FLUSH_CRON:0 * * * * *}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
 
 logging:
   level:
