@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class MediaServiceTest {
 
     private static final long TEN_MB = 10L * 1024 * 1024;
-    private static final long USER_ID = 7L;
+    private static final UUID USER_ID = UUID.fromString("11111111-2222-3333-4444-555555555555");
 
     private MediaService service;
 
@@ -84,6 +85,15 @@ class MediaServiceTest {
                 .isInstanceOf(ApiException.class)
                 .extracting(e -> ((ApiException) e).errorCode())
                 .isEqualTo(ErrorCode.MEDIA_COUNT_INVALID);
+    }
+
+    @Test
+    @DisplayName("프로필 이미지는 profile/ 접두어를 쓴다")
+    void 프로필_키_접두어() {
+        UploadUrl url = service.issueUploadUrls(USER_ID,
+                new PresignRequest(MediaPurpose.PROFILE_IMAGE, jpegs(1))).get(0);
+
+        assertThat(url.imageKey()).startsWith("profile/" + USER_ID + "/");
     }
 
     @Test

@@ -59,4 +59,37 @@ main
 - 브랜치 이름은 `feature/frontend-login`처럼 작성합니다.
 - 커밋 메시지는 `feat(frontend): 로그인 페이지 구현`처럼 작성합니다.
 
-자세한 Git 전략은 [docs/git-strategy.md](git-strategy.md)를 참고합니다.
+자세한 Git 전략은 [docs/09-git-strategy.md](09-git-strategy.md)를 참고합니다.
+
+## 문서 목록
+
+파일 이름 앞의 번호는 **읽는 순서**다. 새 문서를 넣을 때도 번호를 붙여 정렬이 흐트러지지 않게 한다.
+
+| # | 문서 | 내용 |
+| --- | --- | --- |
+| 01 | [01-requirements-spec.md](01-requirements-spec.md) | 요구사항 명세서 — 291건, 대분류별 상세와 중요도 |
+| 02 | [02-feature-spec.md](02-feature-spec.md) | 기능 명세서 — 화면 흐름과 페이지 전환 106항목 |
+| 03 | [03-api-spec.md](03-api-spec.md) | API 명세서 — 97 엔드포인트·요청·응답·에러·배치·요구사항 추적 |
+| 04 | [04-data-design.md](04-data-design.md) | 데이터 설계 — 테이블 29개, 설계 판단, 인덱스 |
+| 05 | [05-erd-reference.md](05-erd-reference.md) | ERD 참조 — 엔터티 29개, 관계 49개, 삭제 정책 |
+| 06 | [06-glossary.md](06-glossary.md) | 용어 사전 — 표시 용어와 DB·API 식별자 |
+| 07 | [07-decision-log.md](07-decision-log.md) | 미확정사항 결정 이력 — 15건 |
+| 08 | [08-spec-changelog.md](08-spec-changelog.md) | 명세 변경 이력 — 버전별 변경 내역과 작성 규칙 |
+| 09 | [09-git-strategy.md](09-git-strategy.md) | Git 브랜치 전략, 커밋·PR 규칙 |
+| 11 | [11-db-engine-decision.md](11-db-engine-decision.md) | DB 엔진 결정 (PostgreSQL 16 + PostGIS 3) |
+| 13 | [13-flutter-bootstrap-plan.md](13-flutter-bootstrap-plan.md) | Flutter 앱 초기 구성 계획 |
+| — | [specs/](specs) | 스프레드시트 원본 (.xlsx) |
+
+**번호 10·12는 비워 두었다.** 다른 브랜치에 있는 문서가 머지되면 그 자리에 들어간다.
+
+| # | 문서 | 어디에 있나 |
+| --- | --- | --- |
+| 10 | `10-commit-convention.md` | `feature/backend-post` — 커밋 메시지 양식, 요구사항 ID 연결 규칙 |
+| 12 | `12-db-schema.dbml` | `docs/backend-db-design` — dbdiagram.io ERD 소스 |
+
+## 명세서를 읽는 방법
+
+01~03이 정본이다. `.md` 는 GitHub에서 바로 읽고 PR diff로 변경을 확인하기 위한 것이고,
+편집은 `specs/` 의 스프레드시트에서 한 뒤 `.md` 를 다시 뽑는다. **`.md` 를 직접 고치지 않는다** — 다음 변환에서 덮어써진다.
+
+세 문서는 **같은 버전 번호로 함께 올린다** (현재 v1.1.3). 규칙은 [08-spec-changelog.md](08-spec-changelog.md) 에 있다.

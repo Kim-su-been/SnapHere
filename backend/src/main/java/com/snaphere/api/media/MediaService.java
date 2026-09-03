@@ -43,7 +43,7 @@ public class MediaService {
         this.properties = properties;
     }
 
-    public List<UploadUrl> issueUploadUrls(long userId, PresignRequest request) {
+    public List<UploadUrl> issueUploadUrls(UUID userId, PresignRequest request) {
         MediaPurpose purpose = request.purpose();
         List<PresignFileRequest> files = request.files();
 
@@ -58,9 +58,7 @@ public class MediaService {
         OffsetDateTime expiresAt = OffsetDateTime.now(KST).plus(ttl);
 
         List<UploadUrl> issued = new ArrayList<>(files.size());
-        for (int index = 0; index < files.size(); index++) {
-            PresignFileRequest file = files.get(index);
-
+        for (PresignFileRequest file : files) {
             AllowedImageType type = AllowedImageType.from(file.mimeType())
                     .orElseThrow(() -> new ApiException(ErrorCode.MEDIA_TYPE_UNSUPPORTED, Map.of(
                             "mimeType", String.valueOf(file.mimeType()))));
@@ -79,7 +77,7 @@ public class MediaService {
     }
 
     /** {@code posts/{userId}/{uuid}.webp} 형태. 확장자는 검증된 형식에서만 나온다. */
-    private String buildObjectKey(MediaPurpose purpose, long userId, AllowedImageType type) {
+    private String buildObjectKey(MediaPurpose purpose, UUID userId, AllowedImageType type) {
         return purpose.keyPrefix()
                 + "/" + userId
                 + "/" + UUID.randomUUID().toString().replace("-", "")
