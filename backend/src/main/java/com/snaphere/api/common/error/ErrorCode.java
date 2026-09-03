@@ -19,7 +19,25 @@ public enum ErrorCode {
 
     // 인증·권한
     AUTH_REQUIRED(HttpStatus.UNAUTHORIZED, "error.auth.required"),
-    ADMIN_REQUIRED(HttpStatus.FORBIDDEN, "error.auth.adminRequired");
+    AUTH_INVALID_GOOGLE_TOKEN(HttpStatus.UNAUTHORIZED, "error.auth.invalidGoogleToken"),
+    AUTH_AUDIENCE_MISMATCH(HttpStatus.UNAUTHORIZED, "error.auth.audienceMismatch"),
+    AUTH_INVALID_REFRESH(HttpStatus.UNAUTHORIZED, "error.auth.invalidRefresh"),
+    AUTH_REFRESH_EXPIRED(HttpStatus.UNAUTHORIZED, "error.auth.refreshExpired"),
+    AUTH_TOKEN_REUSED(HttpStatus.UNAUTHORIZED, "error.auth.tokenReused"),
+    AUTH_TERMS_REQUIRED(HttpStatus.FORBIDDEN, "error.auth.termsRequired"),
+    ADMIN_REQUIRED(HttpStatus.FORBIDDEN, "error.auth.adminRequired"),
+
+    // 장소
+    PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "error.place.notFound"),
+    PLACE_INVALID_COORDINATE(HttpStatus.UNPROCESSABLE_ENTITY, "error.place.invalidCoordinate"),
+    PLACE_OUT_OF_SERVICE_AREA(HttpStatus.UNPROCESSABLE_ENTITY, "error.place.outOfServiceArea"),
+    PLACE_RADIUS_TOO_LARGE(HttpStatus.UNPROCESSABLE_ENTITY, "error.place.radiusTooLarge"),
+    PLACE_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "error.place.dailyLimit"),
+
+    // 신고·운영
+    REPORT_DUPLICATE(HttpStatus.CONFLICT, "error.report.duplicate"),
+    REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "error.report.notFound"),
+    BATCH_ALREADY_RUNNING(HttpStatus.CONFLICT, "error.batch.alreadyRunning");
 
     private final HttpStatus status;
     private final String messageKey;
