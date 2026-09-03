@@ -10,6 +10,7 @@ Spring Boot 3.5 · Java 21 · Gradle (Kotlin DSL) 기반 백엔드 API 서버.
 | 기능 명세서 | `docs/02-feature-spec.md` |
 | API 명세서 | `docs/03-api-spec.md` |
 | ERD 참조 | `docs/05-erd-reference.md` |
+| DB 스키마 (DBML) | `docs/12-db-schema.dbml` |
 | 명세 변경 이력 | `docs/08-spec-changelog.md` |
 | 커밋·브랜치 규칙 | `docs/commit-convention.md` |
 | 스프레드시트 원본 | `docs/specs/` |
@@ -48,13 +49,50 @@ backend/src/main/java/com/snaphere/api/
 │   └── web/        # 공통 응답 봉투·커서 페이징·요청 추적 (SYS-001, SYS-003, SYS-016)
 ├── auth/           # 구글 로그인·JWT·리프레시 토큰 회전 (AUTH-001~011, AUTH-014)
 ├── media/          # 업로드 URL 발급 (PST-013~015)
-├── place/          # 장소·이벤트 조회 포트 (PLC-*, EVT-*)
-└── post/           # 게시글 — 현재는 등급 판정만 (PST-022~028)
+├── place/          # 장소·지역
+│   ├── entity/     #   regions · sigungu · places
+│   ├── repository/ #   조회. 공간 조건은 네이티브 쿼리
+│   ├── jpa/        #   조회 포트의 JPA 구현
+│   └── stub/       #   DB 없이 돌릴 때의 고정 데이터
+└── post/           # 게시글
+    ├── entity/     #   posts · post_images · tags · post_tags · tier_logs
+    ├── repository/ #   조회. 목록은 전부 커서 기반
+    ├── jpa/        #   판정 근거 적재 (tier_logs)
+    └── tier/       #   등급 판정 규칙 (PST-022~028)
 ```
+
+## 데이터베이스 준비
+
+PostgreSQL 16 + PostGIS 3 이 필요하다. 스키마는 Flyway 가 만든다 — 손으로 만들지 않는다.
+
+| 파일 | 내용 |
+| --- | --- |
+| `V1__auth_schema.sql` | `users` · `user_devices` · `refresh_tokens` |
+| `V2__place_schema.sql` | `regions` · `sigungu` · `places` + 공간·검색 인덱스 |
+| `V3__post_schema.sql` | `posts` · `post_images` · `tags` · `post_tags` · `tier_logs` |
+| `V4__region_seed.sql` | 17개 시도 기준정보. `posts.area_code` 가 참조하므로 없으면 게시글을 만들 수 없다 |
+
+`V2` 가 `postgis` · `pg_trgm` 확장을 만든다. 확장 생성에는 보통 슈퍼유저 권한이 필요하니
+관리형 DB(RDS 등)에서는 관리자 계정으로 한 번 만들어 두고 애플리케이션 계정에는 권한을 주지 않아도 된다.
+
+Docker 로 띄우는 것이 가장 간단하다. PostGIS 가 포함된 이미지를 쓴다.
+
+```bash
+docker run -d --name snaphere-db -p 5432:5432 \
+  -e POSTGRES_DB=snaphere -e POSTGRES_USER=snaphere -e POSTGRES_PASSWORD=snaphere \
+  postgis/postgis:16-3.4
+```
+
+`spring.jpa.hibernate.ddl-auto` 는 `validate` 다. 엔티티와 마이그레이션이 어긋나면 애플리케이션이
+기동하지 않고 어느 컬럼이 다른지 알려 준다 — 스키마를 Hibernate 가 바꾸는 일은 없다.
+
+테스트는 H2 로 돌기 때문에 Flyway 를 끄고 Hibernate 가 엔티티에서 스키마를 만든다
+(`src/test/resources/application.yml`). PostGIS 문법은 H2 에서 실행되지 않는다.
+마이그레이션 자체의 검증은 위 PostgreSQL 컨테이너에 붙여서 한다.
 
 ## 실행 전 필요한 값
 
-PostgreSQL 16 데이터베이스와 아래 환경 변수가 필요하다. `SNAPHERE_JWT_SECRET` 은 32바이트 이상
+아래 환경 변수가 필요하다. `SNAPHERE_JWT_SECRET` 은 32바이트 이상
 무작위 값으로 설정하고, 모바일 앱의 Google OAuth 클라이언트 ID 를 쓴다.
 
 ```text
@@ -138,6 +176,8 @@ curl -X POST http://localhost:8080/api/v1/posts/tier-preview \
 
 ## 아직 없는 것
 
-- 게시글 도메인 나머지 (`PST-001`~`PST-012`, `PST-016`~`PST-021`, `PST-029`~`PST-045`) — `docs/commit-convention.md` 의 분할 계획 참고
-- 장소·이벤트 테이블. 지금은 `place/stub/StubPlaceData` 의 고정 데이터를 읽는다
-- 판정 근거 저장. 지금은 로그로만 남고 `tier_logs` 테이블이 생기면 `TierDecisionLogger` 구현을 교체한다 (`PST-028`)
+- 게시글 등록·조회·수정·삭제 (`PST-001`~`PST-012`, `PST-016`~`PST-021`, `PST-029`~`PST-045`) — `docs/commit-convention.md` 의 분할 계획 참고
+- `events` 테이블. 이벤트 도메인(EVT)은 다른 담당 범위라 아직 스키마가 없고,
+  `place/stub/StubEventData` 의 고정 데이터를 읽는다. 판정 경로를 끊지 않기 위한 임시다
+- TourAPI 적재 (`PLC-003`). `places` 테이블은 만들어져 있지만 채우는 배치가 없다.
+  `V4` 로 시도 마스터만 들어간다

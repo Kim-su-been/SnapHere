@@ -28,8 +28,10 @@ server:
     context-path: /                # Base URL 접두어는 컨트롤러의 /api/v1 로 표기 (SYS-013)
 
 snaphere:
-  # 장소·이벤트 고정 데이터. 해당 테이블과 JPA 가 들어오면 false 로 두고 제거한다
-  stub-data: ${SNAPHERE_STUB_DATA:true}
+  # true 로 두면 places·regions 를 읽지 않고 고정 데이터로 등급 판정을 돌린다.
+  # PostgreSQL 을 띄우지 않고 앱과 흐름만 맞춰 볼 때만 쓴다 (StubPlaceData).
+  # V2~V4 마이그레이션이 들어왔으므로 기본값은 false — 실제 테이블을 읽는다.
+  stub-data: ${SNAPHERE_STUB_DATA:false}
   api:
     base-path: /api/v1             # SYS-013
   paging:
