@@ -59,7 +59,7 @@ public class PostImageEntity {
     }
 
     public static PostImageEntity create(Long postId, String imageKey, int sortOrder,
-                                         BigDecimal aspectRatio) {
+                                         BigDecimal aspectRatio, String imageHash) {
         if (sortOrder < 1 || sortOrder > MAX_PER_POST) {
             throw new IllegalArgumentException("사진 순서는 1~" + MAX_PER_POST + " 이다: " + sortOrder);
         }
@@ -68,6 +68,7 @@ public class PostImageEntity {
         image.imageKey = imageKey;
         image.sortOrder = (short) sortOrder;
         image.aspectRatio = aspectRatio;
+        image.imageHash = imageHash;
         image.createdAt = OffsetDateTime.now();
         return image;
     }

@@ -48,10 +48,21 @@ public class TagEntity {
 
     public static TagEntity of(String rawName) {
         TagEntity tag = new TagEntity();
-        tag.name = rawName.strip();
+        tag.name = displayName(rawName);
         tag.normalizedName = normalize(rawName);
         tag.createdAt = OffsetDateTime.now();
         return tag;
+    }
+
+    /**
+     * 표시용 이름. 앞의 '#' 만 떼고 양 끝 공백을 지운다.
+     *
+     * <p>가운데 공백은 남긴다 — 앱이 보여줄 이름은 사용자가 쓴 그대로여야 하고, 같은 태그로 묶는
+     * 일은 {@link #normalize(String)} 가 따로 한다.
+     */
+    public static String displayName(String rawName) {
+        String value = rawName.strip();
+        return value.startsWith("#") ? value.substring(1).strip() : value;
     }
 
     /** 소문자 변환 + 공백 제거. 앞의 '#' 도 떼어 낸다. (CMU-025) */
