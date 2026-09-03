@@ -40,6 +40,11 @@ public enum ErrorCode {
     PLACE_INVALID_COORDINATE(HttpStatus.UNPROCESSABLE_ENTITY, "error.place.invalidCoordinate"),
     EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "error.event.notFound"),
 
+    // 댓글 (CMU-012 ~ CMU-018)
+    COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "error.comment.notFound"),
+    COMMENT_NOT_AUTHOR(HttpStatus.FORBIDDEN, "error.comment.notAuthor"),
+    COMMENT_LENGTH_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "error.comment.lengthInvalid"),
+
     // 게시글 (PST-*)
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "error.post.notFound"),
     POST_NOT_VISIBLE(HttpStatus.NOT_FOUND, "error.post.notVisible"),

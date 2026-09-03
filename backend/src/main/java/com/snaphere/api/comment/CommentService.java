@@ -1,0 +1,142 @@
+package com.snaphere.api.comment;
+
+import com.snaphere.api.comment.dto.CommentResponse;
+import com.snaphere.api.comment.dto.CommentThreadResponse;
+import com.snaphere.api.comment.dto.CreateCommentRequest;
+import com.snaphere.api.comment.entity.CommentEntity;
+import com.snaphere.api.comment.repository.CommentRepository;
+import com.snaphere.api.common.error.ApiException;
+import com.snaphere.api.common.error.ErrorCode;
+import com.snaphere.api.common.web.CursorPage;
+import com.snaphere.api.common.web.PagingProperties;
+import com.snaphere.api.post.PostStatus;
+import com.snaphere.api.post.repository.PostRepository;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+
+/**
+ * API-CMU-004 · API-CMU-005 — 댓글 작성·조회.
+ *
+ * <p>기능 명세: 5.3 댓글 &gt; 댓글 작성·조회
+ * <p>요구사항: CMU-012, CMU-013
+ */
+@Service
+public class CommentService {
+
+    private final CommentRepository comments;
+    private final PostRepository posts;
+    private final CommentResponseAssembler assembler;
+    private final PagingProperties paging;
+
+    public CommentService(CommentRepository comments,
+                          PostRepository posts,
+                          CommentResponseAssembler assembler,
+                          PagingProperties paging) {
+        this.comments = comments;
+        this.posts = posts;
+        this.assembler = assembler;
+        this.paging = paging;
+    }
+
+    /**
+     * 최상위 댓글을 작성한다. (CMU-012)
+     *
+     * <p>대상은 살아 있는 게시글만이다. 가려진 게시글({@code HIDDEN})에도 댓글을 막는다 — 신고로
+     * 가려진 글에 대화가 계속 쌓이면 운영자가 복구를 판단할 때 무엇을 되살리는지가 흐려진다.
+     */
+    @Transactional
+    public CommentResponse create(long postId, UUID userId, CreateCommentRequest request) {
+        String content = CommentContent.require(request.content());
+        requireActivePost(postId);
+
+        CommentEntity saved = comments.save(CommentEntity.root(postId, userId, content));
+        posts.addCommentCount(postId, 1);
+
+        return assembler.response(saved, Set.of());
+    }
+
+    /**
+     * 스레드 한 페이지. 최상위 댓글을 커서로 넘기고 각 부모의 대댓글을 한 번에 붙인다. (CMU-013)
+     *
+     * <p>없는 게시글이어도 404 가 아니라 빈 페이지다 — 명세의 오류 목록에 게시글 없음이 없다
+     * (API-CMU-004). 상세 화면이 이미 게시글을 조회했고, 댓글 목록이 다시 404 를 내면 화면이
+     * 통째로 오류가 된다.
+     *
+     * <p>한 페이지를 요청 크기보다 하나 더 읽어 다음 페이지 존재를 판단한다. 전체 개수를 세면
+     * 댓글이 많은 글에서 매번 count 쿼리가 붙는다.
+     */
+    @Transactional(readOnly = true)
+    public CursorPage<CommentThreadResponse> threads(long postId,
+                                                     String cursor,
+                                                     Integer requestedSize,
+                                                     Optional<UUID> viewerId) {
+        int size = paging.resolve(requestedSize);
+        CommentCursor decoded = CommentCursor.decode(cursor);
+
+        List<CommentEntity> roots = comments.findRoots(
+                postId,
+                decoded == null ? null : decoded.createdAt(),
+                decoded == null ? null : decoded.commentId(),
+                PageRequest.of(0, size + 1));
+
+        boolean hasNext = roots.size() > size;
+        if (hasNext) {
+            roots = roots.subList(0, size);
+        }
+        if (roots.isEmpty()) {
+            return CursorPage.empty();
+        }
+
+        List<Long> rootIds = new ArrayList<>(roots.size());
+        for (CommentEntity root : roots) {
+            rootIds.add(root.getCommentId());
+        }
+        List<CommentEntity> replies = comments.findRepliesOf(rootIds);
+
+        // 요청자의 좋아요 상태는 CMU-018 에서 채운다. 그때까지는 회원이어도 null 이다 —
+        // 빈 집합을 주면 "안 눌렀다"고 단정하는 셈이고, 명세가 isLiked 를 nullable 로 둔 이유가 그것이다.
+        // viewerId 는 그 조회에 그대로 쓰이므로 미리 받아 둔다.
+        Set<Long> likedByViewer = null;
+
+        Map<Long, CommentResponse> repliesById = new LinkedHashMap<>();
+        List<CommentResponse> replyResponses = assembler.responses(replies, likedByViewer);
+        for (int i = 0; i < replies.size(); i++) {
+            repliesById.put(replies.get(i).getCommentId(), replyResponses.get(i));
+        }
+
+        Map<Long, List<CommentResponse>> repliesByParent = new LinkedHashMap<>();
+        for (CommentEntity reply : replies) {
+            repliesByParent
+                    .computeIfAbsent(reply.getParentId(), key -> new ArrayList<>())
+                    .add(repliesById.get(reply.getCommentId()));
+        }
+
+        List<CommentResponse> rootResponses = assembler.responses(roots, likedByViewer);
+        List<CommentThreadResponse> items = new ArrayList<>(roots.size());
+        for (int i = 0; i < roots.size(); i++) {
+            items.add(new CommentThreadResponse(
+                    rootResponses.get(i),
+                    repliesByParent.getOrDefault(roots.get(i).getCommentId(), List.of())));
+        }
+
+        CommentEntity last = roots.get(roots.size() - 1);
+        String nextCursor = hasNext
+                ? new CommentCursor(last.getCreatedAt(), last.getCommentId()).encode()
+                : null;
+        return CursorPage.of(items, nextCursor);
+    }
+
+    private void requireActivePost(long postId) {
+        posts.findByPostIdAndStatus(postId, PostStatus.ACTIVE)
+                .orElseThrow(() -> new ApiException(ErrorCode.POST_NOT_FOUND));
+    }
+}
