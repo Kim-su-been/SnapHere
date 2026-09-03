@@ -10,6 +10,7 @@ FE, BE, AI, 문서를 하나의 Git 저장소에서 함께 관리하는 모노�
 ├── backend/       # 백엔드 API 서버
 ├── ai/            # AI 모델, 학습/추론 코드, 실험 자료
 ├── docs/          # 기획/설계/회의/API 문서
+├── AGENTS.md      # 에이전트 협업·의사결정 기록 규칙
 ├── .gitignore     # 공통 Git 제외 규칙
 └── README.md      # 프로젝트 개요
 ```
@@ -73,7 +74,7 @@ main
 | 04 | [04-data-design.md](04-data-design.md) | 데이터 설계 — 테이블 29개, 설계 판단, 인덱스 |
 | 05 | [05-erd-reference.md](05-erd-reference.md) | ERD 참조 — 엔터티 29개, 관계 49개, 삭제 정책 |
 | 06 | [06-glossary.md](06-glossary.md) | 용어 사전 — 표시 용어와 DB·API 식별자 |
-| 07 | [07-decision-log.md](07-decision-log.md) | 미확정사항 결정 이력 — 15건 |
+| 07 | [07-decision-log.md](07-decision-log.md) | 제품 미확정사항 및 구현 의사결정 이력 |
 | 08 | [08-spec-changelog.md](08-spec-changelog.md) | 명세 변경 이력 — 버전별 변경 내역과 작성 규칙 |
 | 09 | [09-git-strategy.md](09-git-strategy.md) | Git 브랜치 전략, 커밋·PR 규칙 |
 | 11 | [11-db-engine-decision.md](11-db-engine-decision.md) | DB 엔진 결정 (PostgreSQL 16 + PostGIS 3) |
@@ -86,6 +87,15 @@ main
 | --- | --- | --- |
 | 10 | `10-commit-convention.md` | `feature/backend-post` — 커밋 메시지 양식, 요구사항 ID 연결 규칙 |
 | 12 | `12-db-schema.dbml` | `docs/backend-db-design` — dbdiagram.io ERD 소스 |
+
+## 에이전트 협업 의사결정
+
+에이전트는 저장소 루트의 [`AGENTS.md`](../AGENTS.md)를 작업 규칙으로 사용한다. 플랜 모드 여부와 관계없이 사용자 결정과 에이전트 자동 결정을 [`07-decision-log.md`](07-decision-log.md)에 기록한다.
+
+- 범위, 아키텍처, 운영 의존성·버전, 외부 연동, 보안, API·DB 계약에 영향을 주는 결정은 구현 전에 기록한다.
+- 에이전트는 기존 범위 안의 되돌리기 쉬운 저위험 세부사항만 자동 결정할 수 있다.
+- 범위 확대나 계약 변경처럼 중요한 선택은 사용자 확인 없이 구현하지 않는다.
+- 결정으로 명세가 달라지면 [`08-spec-changelog.md`](08-spec-changelog.md)의 버전·근거 기록 규칙도 함께 적용한다.
 
 ## 명세서를 읽는 방법
 
