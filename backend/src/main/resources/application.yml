@@ -34,6 +34,10 @@ snaphere:
   stub-data: ${SNAPHERE_STUB_DATA:false}
   api:
     base-path: /api/v1             # SYS-013
+  jobs:
+    # 주기 배치 실행 여부. 분산 락이 없어 여러 인스턴스를 띄울 때는 한 대만 true 로 둔다 —
+    # 두 대가 동시에 돌면 같은 기간의 집계를 서로 지우고 넣는다 (JOB-013)
+    enabled: ${SNAPHERE_JOBS_ENABLED:true}
   paging:
     default-size: 20               # SYS-003
     max-size: 50

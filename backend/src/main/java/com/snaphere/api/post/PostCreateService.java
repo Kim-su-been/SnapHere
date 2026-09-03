@@ -4,7 +4,6 @@ import com.snaphere.api.badge.AwardedBadge;
 import com.snaphere.api.badge.BadgeAwarder;
 import com.snaphere.api.common.error.ApiException;
 import com.snaphere.api.common.error.ErrorCode;
-import com.snaphere.api.media.storage.MediaUrlResolver;
 import com.snaphere.api.place.EventSnapshot;
 import com.snaphere.api.place.EventSnapshotReader;
 import com.snaphere.api.place.PlaceStatus;
@@ -13,14 +12,9 @@ import com.snaphere.api.place.repository.PlaceRepository;
 import com.snaphere.api.post.dto.BadgeSummaryResponse;
 import com.snaphere.api.post.dto.CreatePostRequest;
 import com.snaphere.api.post.dto.CreatePostResponse;
-import com.snaphere.api.post.dto.PlaceSummaryResponse;
 import com.snaphere.api.post.dto.PostDetailResponse;
 import com.snaphere.api.post.dto.PostImageRequest;
-import com.snaphere.api.post.dto.PostImageResponse;
-import com.snaphere.api.post.dto.PostSummaryResponse;
-import com.snaphere.api.post.dto.TagSummaryResponse;
 import com.snaphere.api.post.dto.TierResultResponse;
-import com.snaphere.api.post.dto.UserSummaryResponse;
 import com.snaphere.api.post.entity.PostEntity;
 import com.snaphere.api.post.entity.PostImageEntity;
 import com.snaphere.api.post.entity.PostTagEntity;
@@ -37,8 +31,6 @@ import com.snaphere.api.post.tier.TierInput;
 import com.snaphere.api.post.tier.TierPolicy;
 import com.snaphere.api.post.tier.TierThresholds;
 import com.snaphere.api.post.tier.VerifyRadiusResolver;
-import com.snaphere.api.user.AuthorSnapshot;
-import com.snaphere.api.user.AuthorSnapshotReader;
 import com.snaphere.api.visit.VisitRecorder;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -76,8 +68,7 @@ public class PostCreateService {
     private final PostCreateValidator validator;
     private final UploadLimitChecker limitChecker;
     private final TagService tagService;
-    private final MediaUrlResolver mediaUrls;
-    private final AuthorSnapshotReader authors;
+    private final PostResponseAssembler assembler;
     private final VisitRecorder visitRecorder;
     private final BadgeAwarder badgeAwarder;
     private final ApplicationEventPublisher eventPublisher;
@@ -93,8 +84,7 @@ public class PostCreateService {
                              PostCreateValidator validator,
                              UploadLimitChecker limitChecker,
                              TagService tagService,
-                             MediaUrlResolver mediaUrls,
-                             AuthorSnapshotReader authors,
+                             PostResponseAssembler assembler,
                              VisitRecorder visitRecorder,
                              BadgeAwarder badgeAwarder,
                              ApplicationEventPublisher eventPublisher) {
@@ -109,8 +99,7 @@ public class PostCreateService {
         this.validator = validator;
         this.limitChecker = limitChecker;
         this.tagService = tagService;
-        this.mediaUrls = mediaUrls;
-        this.authors = authors;
+        this.assembler = assembler;
         this.visitRecorder = visitRecorder;
         this.badgeAwarder = badgeAwarder;
         this.eventPublisher = eventPublisher;
@@ -233,27 +222,9 @@ public class PostCreateService {
                                              TierDecision decision,
                                              boolean visitRecorded,
                                              List<AwardedBadge> awarded) {
-        UserSummaryResponse author = authors.findById(post.getUserId())
-                .map(UserSummaryResponse::from)
-                .orElseGet(() -> UserSummaryResponse.from(
-                        new AuthorSnapshot(post.getUserId(), null, null)));
-
-        List<PostImageResponse> imageResponses = new ArrayList<>(images.size());
-        for (PostImageEntity image : images) {
-            imageResponses.add(PostImageResponse.from(image, mediaUrls.publicUrl(image.getImageKey())));
-        }
-
-        List<TagSummaryResponse> tagResponses = new ArrayList<>(resolvedTags.size());
-        for (int i = 0; i < resolvedTags.size(); i++) {
-            PostTagEntity link = i < tagLinks.size() ? tagLinks.get(i) : null;
-            tagResponses.add(TagSummaryResponse.from(resolvedTags.get(i), link));
-        }
-
-        PostSummaryResponse summary = PostSummaryResponse.of(
-                post, author, PlaceSummaryResponse.from(place), imageResponses);
         TierResultResponse tierResult = TierResultResponse.from(decision);
-        PostDetailResponse detail = PostDetailResponse.of(
-                post, summary, imageResponses, tagResponses, tierResult);
+        PostDetailResponse detail = assembler.detailOf(
+                post, place, images, resolvedTags, tagLinks, tierResult);
 
         List<BadgeSummaryResponse> badges = new ArrayList<>(awarded.size());
         for (AwardedBadge badge : awarded) {

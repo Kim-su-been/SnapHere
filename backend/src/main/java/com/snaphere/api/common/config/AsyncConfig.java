@@ -4,6 +4,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 /**
@@ -18,9 +19,13 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  *
  * <p>작업 규모가 커지면 이 풀 대신 별도 워커와 메시지 큐로 옮긴다. 그때 바꿀 곳은 이 파일과
  * 리스너 하나다.
+ *
+ * <p>{@code @EnableScheduling} 도 여기서 켠다. 주기 배치(JOB-013)는 개별 빈이
+ * {@code snaphere.jobs.enabled} 로 스스로 꺼지므로 이 설정은 항상 두어도 된다.
  */
 @Configuration
 @EnableAsync
+@EnableScheduling
 public class AsyncConfig {
 
     /** 이미지 후처리 전용 풀. 다른 비동기 작업과 섞지 않는다 — 하나가 밀려도 나머지는 돈다. */
