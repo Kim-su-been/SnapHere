@@ -1,4 +1,4 @@
-# DB 엔진 결정 — PostgreSQL 16 + PostGIS 3
+# DB 엔진 결정 — PostgreSQL 17.11 + PostGIS 3.5.2
 
 - 결정일: 2026-09-01
 - 상태: 확정
@@ -6,7 +6,7 @@
 
 ## 결정
 
-**PostgreSQL 16 + PostGIS 3 하나로 통일한다.** MySQL은 사용하지 않는다.
+**PostgreSQL 17.11 + PostGIS 3.5.2 하나로 통일한다.** MySQL은 사용하지 않는다.
 
 필요한 확장: `postgis`, `pg_trgm`
 
