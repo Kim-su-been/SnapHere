@@ -17,6 +17,17 @@ public record TagSummaryResponse(
         boolean locked,
         boolean suggested
 ) {
+    /** 인기 태그 목록용. usageCount 는 호출자가 센 값이다. (CMU-031) */
+    public static TagSummaryResponse popular(TagEntity tag, long usageCount) {
+        return new TagSummaryResponse(
+                String.valueOf(tag.getTagId()),
+                tag.getName(),
+                tag.getThemeCode(),
+                usageCount,
+                false,
+                false);
+    }
+
     public static TagSummaryResponse from(TagEntity tag, PostTagEntity link) {
         return new TagSummaryResponse(
                 String.valueOf(tag.getTagId()),
