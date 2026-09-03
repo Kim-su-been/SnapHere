@@ -24,10 +24,10 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * API-CMU-004 · API-CMU-005 — 댓글 작성·조회.
+ * API-CMU-004 · API-CMU-005 · API-CMU-006 — 댓글 작성·조회·대댓글.
  *
- * <p>기능 명세: 5.3 댓글 &gt; 댓글 작성·조회
- * <p>요구사항: CMU-012, CMU-013
+ * <p>기능 명세: 5.3 댓글 &gt; 댓글 작성·조회 · 대댓글
+ * <p>요구사항: CMU-012, CMU-013, CMU-014, CMU-015
  */
 @Service
 public class CommentService {
@@ -60,6 +60,35 @@ public class CommentService {
 
         CommentEntity saved = comments.save(CommentEntity.root(postId, userId, content));
         posts.addCommentCount(postId, 1);
+
+        return assembler.response(saved, Set.of());
+    }
+
+    /**
+     * 대댓글을 작성한다. (CMU-014, CMU-015)
+     *
+     * <p>깊이는 한 단계로 고정한다. 대댓글에 답글을 달면 그 대댓글이 아니라 <b>그 대댓글의
+     * 부모</b>를 가리키게 바꿔 같은 스레드에 붙인다 — 앱에서는 여전히 "답글의 답글"로 보이지만
+     * 저장 구조는 평평하다. 무한 트리는 화면도 쿼리도 감당이 안 된다 (CMU-015).
+     *
+     * <p>게시글 ID 는 요청에서 받지 않고 부모 댓글에서 가져온다. 경로에 없는 값을 본문으로
+     * 받으면 남의 게시글 스레드에 댓글을 끼워 넣을 수 있다.
+     *
+     * <p>삭제된 댓글에는 답글을 달 수 없다. 자리표시자는 이미 달린 자식을 읽히게 하려고 남긴
+     * 껍데기이지, 대화를 이어 갈 자리가 아니다 (CMU-017).
+     */
+    @Transactional
+    public CommentResponse reply(long commentId, UUID userId, CreateCommentRequest request) {
+        String content = CommentContent.require(request.content());
+
+        CommentEntity target = comments.findById(commentId)
+                .filter(CommentEntity::isActive)
+                .orElseThrow(() -> new ApiException(ErrorCode.COMMENT_NOT_FOUND));
+        requireActivePost(target.getPostId());
+
+        CommentEntity saved = comments.save(CommentEntity.reply(
+                target.getPostId(), userId, target.threadRootId(), content));
+        posts.addCommentCount(target.getPostId(), 1);
 
         return assembler.response(saved, Set.of());
     }
