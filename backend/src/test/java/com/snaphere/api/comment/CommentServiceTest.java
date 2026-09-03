@@ -66,6 +66,9 @@ class CommentServiceTest {
     @BeforeEach
     void setUp() {
         service = new CommentService(comments, posts, assembler, new PagingProperties(20, 50));
+        // 자리표시자 쿼리는 기본적으로 비어 있다. 필요한 테스트에서만 따로 채운다.
+        when(comments.findDeletedRootsWithActiveReplies(anyLong(), any(), any(), any(Pageable.class)))
+                .thenReturn(List.of());
         when(posts.findByPostIdAndStatus(POST_ID, PostStatus.ACTIVE))
                 .thenReturn(Optional.of(activePost()));
         when(comments.save(any())).thenAnswer(call -> call.getArgument(0));
@@ -125,7 +128,7 @@ class CommentServiceTest {
     @Test
     @DisplayName("댓글이 없으면 빈 페이지다. 자식 조회는 아예 나가지 않는다")
     void emptyPage() {
-        when(comments.findRoots(eq(POST_ID), isNull(), isNull(), any(Pageable.class)))
+        when(comments.findActiveRoots(eq(POST_ID), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(List.of());
 
         CursorPage<CommentThreadResponse> page =
@@ -139,11 +142,12 @@ class CommentServiceTest {
     @Test
     @DisplayName("요청 크기보다 하나 더 읽어 다음 페이지를 판단하고, 마지막 행으로 커서를 만든다")
     void paginatesWithOneExtraRow() {
+        // 저장소는 항상 최신순으로 돌려준다 — 테스트 데이터도 그 순서여야 한다.
         List<CommentEntity> roots = new ArrayList<>();
-        for (int i = 0; i <= 20; i++) {
+        for (int i = 20; i >= 0; i--) {
             roots.add(withId(CommentEntity.root(POST_ID, WRITER, "댓글 " + i), 100 + i, at(i)));
         }
-        when(comments.findRoots(eq(POST_ID), isNull(), isNull(), any(Pageable.class)))
+        when(comments.findActiveRoots(eq(POST_ID), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(roots);
         when(comments.findRepliesOf(any())).thenReturn(List.of());
         when(assembler.responses(any(), any())).thenAnswer(call -> responsesFor(call.getArgument(0)));
@@ -154,8 +158,8 @@ class CommentServiceTest {
         assertThat(page.items()).hasSize(20);
         assertThat(page.hasNext()).isTrue();
         assertThat(page.nextCursor()).isNotNull();
-        // 21번째 행은 존재 판단에만 쓰고 버린다. 커서는 20번째 행 기준이어야 다음 페이지가 이어진다.
-        assertThat(CommentCursor.decode(page.nextCursor()).commentId()).isEqualTo(119L);
+        // 21번째 행(가장 오래된 100번)은 존재 판단에만 쓰고 버린다. 커서는 20번째 행 기준이어야 한다.
+        assertThat(CommentCursor.decode(page.nextCursor()).commentId()).isEqualTo(101L);
     }
 
     @Test
@@ -166,7 +170,7 @@ class CommentServiceTest {
         CommentEntity replyA = withId(CommentEntity.reply(POST_ID, WRITER, 1L, "자식A"), 11L, at(3));
         CommentEntity replyB = withId(CommentEntity.reply(POST_ID, WRITER, 1L, "자식B"), 12L, at(4));
 
-        when(comments.findRoots(eq(POST_ID), isNull(), isNull(), any(Pageable.class)))
+        when(comments.findActiveRoots(eq(POST_ID), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(List.of(second, first));
         when(comments.findRepliesOf(any())).thenReturn(List.of(replyA, replyB));
         when(assembler.responses(any(), any())).thenAnswer(call -> responsesFor(call.getArgument(0)));
@@ -184,7 +188,7 @@ class CommentServiceTest {
     @DisplayName("비회원 조회는 좋아요 상태를 모른다 — 빈 집합이 아니라 null 을 넘긴다")
     void anonymousViewerGetsNullLikedState() {
         CommentEntity root = withId(CommentEntity.root(POST_ID, WRITER, "부모"), 1L, at(1));
-        when(comments.findRoots(eq(POST_ID), isNull(), isNull(), any(Pageable.class)))
+        when(comments.findActiveRoots(eq(POST_ID), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(List.of(root));
         when(comments.findRepliesOf(any())).thenReturn(List.of());
         when(assembler.responses(any(), any())).thenAnswer(call -> responsesFor(call.getArgument(0)));
@@ -208,5 +212,53 @@ class CommentServiceTest {
     void createPassesEmptyLikedSet() {
         service.create(POST_ID, WRITER, new CreateCommentRequest("좋아요"));
         verify(assembler).response(any(), eq(Set.of()));
+    }
+
+    @Test
+    @DisplayName("자리표시자는 활성 댓글과 시각 순서대로 섞인다 — 상태별로 나눠 읽고 합친다 (CMU-017)")
+    void mergesTombstonesByTime() {
+        CommentEntity newest = withId(CommentEntity.root(POST_ID, WRITER, "새 댓글"), 3L, at(30));
+        CommentEntity oldest = withId(CommentEntity.root(POST_ID, WRITER, "옛 댓글"), 1L, at(10));
+        CommentEntity tombstone = withId(CommentEntity.root(POST_ID, WRITER, "지워짐"), 2L, at(20));
+        tombstone.markDeleted();
+
+        when(comments.findActiveRoots(eq(POST_ID), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(List.of(newest, oldest));
+        when(comments.findDeletedRootsWithActiveReplies(eq(POST_ID), isNull(), isNull(),
+                any(Pageable.class))).thenReturn(List.of(tombstone));
+        when(comments.findRepliesOf(any())).thenReturn(List.of());
+        when(assembler.responses(any(), any())).thenAnswer(call -> responsesFor(call.getArgument(0)));
+
+        CursorPage<CommentThreadResponse> page =
+                service.threads(POST_ID, null, null, Optional.empty());
+
+        assertThat(page.items()).extracting(item -> item.parent().commentId())
+                .containsExactly("3", "2", "1");
+    }
+
+    @Test
+    @DisplayName("합친 결과에도 한 행 더 읽기 규칙이 그대로 적용된다")
+    void mergeRespectsPageSize() {
+        List<CommentEntity> active = new ArrayList<>();
+        for (int i = 20; i >= 0; i--) {
+            active.add(withId(CommentEntity.root(POST_ID, WRITER, "댓글 " + i), 200 + i, at(i)));
+        }
+        CommentEntity tombstone = withId(CommentEntity.root(POST_ID, WRITER, "지워짐"), 999L, at(59));
+        tombstone.markDeleted();
+
+        when(comments.findActiveRoots(eq(POST_ID), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(active);
+        when(comments.findDeletedRootsWithActiveReplies(eq(POST_ID), isNull(), isNull(),
+                any(Pageable.class))).thenReturn(List.of(tombstone));
+        when(comments.findRepliesOf(any())).thenReturn(List.of());
+        when(assembler.responses(any(), any())).thenAnswer(call -> responsesFor(call.getArgument(0)));
+
+        CursorPage<CommentThreadResponse> page =
+                service.threads(POST_ID, null, null, Optional.empty());
+
+        assertThat(page.items()).hasSize(20);
+        assertThat(page.hasNext()).isTrue();
+        // 자리표시자가 가장 최신이라 첫 줄에 온다.
+        assertThat(page.items().get(0).parent().commentId()).isEqualTo("999");
     }
 }

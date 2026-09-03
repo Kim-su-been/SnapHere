@@ -12,10 +12,13 @@ import com.snaphere.api.common.web.PagingProperties;
 import com.snaphere.api.post.PostStatus;
 import com.snaphere.api.post.repository.PostRepository;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -111,11 +114,16 @@ public class CommentService {
         int size = paging.resolve(requestedSize);
         CommentCursor decoded = CommentCursor.decode(cursor);
 
-        List<CommentEntity> roots = comments.findRoots(
-                postId,
-                decoded == null ? null : decoded.createdAt(),
-                decoded == null ? null : decoded.commentId(),
-                PageRequest.of(0, size + 1));
+        // 상태별로 두 번 읽어 자바에서 합친다. 한 쿼리에서 OR 로 묶으면 PostgreSQL 이 EXISTS 를
+        // 해시 서브플랜으로 바꿔 comments 전체를 훑는다 (CommentRepository 주석 참고).
+        OffsetDateTime cursorCreatedAt = decoded == null ? null : decoded.createdAt();
+        Long cursorCommentId = decoded == null ? null : decoded.commentId();
+        Pageable window = PageRequest.of(0, size + 1);
+
+        List<CommentEntity> roots = mergeNewestFirst(
+                comments.findActiveRoots(postId, cursorCreatedAt, cursorCommentId, window),
+                comments.findDeletedRootsWithActiveReplies(postId, cursorCreatedAt, cursorCommentId, window),
+                size + 1);
 
         boolean hasNext = roots.size() > size;
         if (hasNext) {
@@ -162,6 +170,33 @@ public class CommentService {
                 ? new CommentCursor(last.getCreatedAt(), last.getCommentId()).encode()
                 : null;
         return CursorPage.of(items, nextCursor);
+    }
+
+    /** 최신순 정렬 기준. 커서와 같은 두 키를 본다 — 여기가 어긋나면 페이지 경계에서 행이 겹친다. */
+    private static final Comparator<CommentEntity> NEWEST_FIRST =
+            Comparator.comparing(CommentEntity::getCreatedAt)
+                    .thenComparing(CommentEntity::getCommentId)
+                    .reversed();
+
+    /**
+     * 이미 각각 최신순인 두 목록을 앞에서부터 큰 쪽만 집어 합친다.
+     *
+     * <p>합친 뒤 다시 정렬하지 않는다. 두 목록 다 한 페이지 분량뿐이라 비용 차이는 작지만, 정렬을
+     * 한 번 더 두면 그 기준이 커서 기준과 어긋날 여지가 생긴다 — 경계에서 행이 겹치거나 사라진다.
+     */
+    private static List<CommentEntity> mergeNewestFirst(List<CommentEntity> active,
+                                                        List<CommentEntity> tombstones,
+                                                        int limit) {
+        List<CommentEntity> merged = new ArrayList<>(limit);
+        int i = 0;
+        int j = 0;
+        while (merged.size() < limit && (i < active.size() || j < tombstones.size())) {
+            boolean takeActive = j >= tombstones.size()
+                    || (i < active.size()
+                        && NEWEST_FIRST.compare(active.get(i), tombstones.get(j)) <= 0);
+            merged.add(takeActive ? active.get(i++) : tombstones.get(j++));
+        }
+        return merged;
     }
 
     private void requireActivePost(long postId) {
