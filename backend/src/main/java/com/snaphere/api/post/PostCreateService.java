@@ -24,6 +24,7 @@ import com.snaphere.api.post.repository.PostImageRepository;
 import com.snaphere.api.post.repository.PostRepository;
 import com.snaphere.api.post.repository.PostTagRepository;
 import com.snaphere.api.post.repository.TagRepository;
+import com.snaphere.api.post.tag.TagSuggestionService;
 import com.snaphere.api.post.tier.GeoDistance;
 import com.snaphere.api.post.tier.TierDecision;
 import com.snaphere.api.post.tier.TierDecisionLogger;
@@ -40,6 +41,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.UUID;
 
@@ -68,6 +70,7 @@ public class PostCreateService {
     private final PostCreateValidator validator;
     private final UploadLimitChecker limitChecker;
     private final TagService tagService;
+    private final TagSuggestionService tagSuggestionService;
     private final PostResponseAssembler assembler;
     private final VisitRecorder visitRecorder;
     private final BadgeAwarder badgeAwarder;
@@ -84,6 +87,7 @@ public class PostCreateService {
                              PostCreateValidator validator,
                              UploadLimitChecker limitChecker,
                              TagService tagService,
+                             TagSuggestionService tagSuggestionService,
                              PostResponseAssembler assembler,
                              VisitRecorder visitRecorder,
                              BadgeAwarder badgeAwarder,
@@ -99,6 +103,7 @@ public class PostCreateService {
         this.validator = validator;
         this.limitChecker = limitChecker;
         this.tagService = tagService;
+        this.tagSuggestionService = tagSuggestionService;
         this.assembler = assembler;
         this.visitRecorder = visitRecorder;
         this.badgeAwarder = badgeAwarder;
@@ -131,7 +136,10 @@ public class PostCreateService {
                 request.lat(), request.lng(), request.takenAt(), request.source()));
 
         List<PostImageEntity> savedImages = saveImages(post.getPostId(), images);
-        List<PostTagEntity> savedTagLinks = saveTagLinks(post.getPostId(), resolvedTags);
+        Set<String> suggestedNames = tagSuggestionService.suggestedNormalizedNames(
+                place.getPlaceId(), request.eventId());
+        List<PostTagEntity> savedTagLinks =
+                saveTagLinks(post.getPostId(), resolvedTags, suggestedNames);
 
         decisionLogger.record(post.getPostId(), userId, place.getPlaceId(),
                 request.eventId(), tierInput, decision);
@@ -198,14 +206,21 @@ public class PostCreateService {
     /**
      * 태그 연결과 사용 횟수 증가.
      *
-     * <p>{@code isSuggested} 는 아직 항상 false 다. 추천 태그 자동 주입(CMU-026~029)이 들어오면
-     * 그때 구분한다. {@code isLocked} 도 행사 고정 태그(EVT-018)와 함께 채운다.
+     * <p>{@code isSuggested} 는 서버가 이 장소·행사에서 추천했을 태그와 겹치는지로 정한다
+     * (CMU-029). 요청에 "추천에서 골랐다"는 표시를 받지 않는 이유는, 추천 칩을 누른 경우와 같은
+     * 글자를 직접 타이핑한 경우를 서버가 구분할 수 없고 구분할 필요도 없기 때문이다 — 지표로 알고
+     * 싶은 것은 "추천이 실제로 쓰였는가"다.
+     *
+     * <p>{@code isLocked} 는 아직 항상 false 다. 행사 고정 태그는 events 테이블이 생긴 뒤
+     * EVT-018 과 함께 채운다 — 지금 true 로 두면 뗄 수 없는 태그가 근거 없이 붙는다.
      */
-    private List<PostTagEntity> saveTagLinks(Long postId, List<TagEntity> resolved) {
+    private List<PostTagEntity> saveTagLinks(Long postId, List<TagEntity> resolved,
+                                             Set<String> suggestedNormalizedNames) {
         List<PostTagEntity> links = new ArrayList<>(resolved.size());
         List<Long> tagIds = new ArrayList<>(resolved.size());
         for (TagEntity tag : resolved) {
-            links.add(PostTagEntity.of(postId, tag.getTagId(), false, false));
+            boolean suggested = suggestedNormalizedNames.contains(tag.getNormalizedName());
+            links.add(PostTagEntity.of(postId, tag.getTagId(), false, suggested));
             tagIds.add(tag.getTagId());
         }
         List<PostTagEntity> saved = new ArrayList<>(postTags.saveAll(links));
