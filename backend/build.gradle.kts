@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.snaphere"
-version = "1.1.3"
+version = "1.1.5"
 
 val requiredJdkVersion = "21.0.11"
 val currentJdkVersion = System.getProperty("java.version").substringBefore('+').substringBefore('-')

@@ -81,6 +81,11 @@ Percona Distribution for PostgreSQL 17.10.2 + PostGIS 3.5.7이 필요하다. 스
 | `V3__post_schema.sql` | `posts` · `post_images` · `tags` · `post_tags` · `tier_logs` |
 | `V4__region_seed.sql` | 17개 시도 기준정보. `posts.area_code` 가 참조하므로 없으면 게시글을 만들 수 없다 |
 | `V11__place_features.sql` | 장소 상세·저장·랭킹·신고·이벤트·배치 운영 확장 |
+| `V12__map_aggregates.sql` | 기간별 히트맵 셀·지역 통계·갱신 상태 집계 |
+
+`V11__place_features.sql`은 병합 직후 V8/V9의 `bookmarks`·`reports`를 중복 생성하던 오류를
+수정했다. 수정 전 V11을 이미 적용한 개발 DB는 새 코드를 올리기 전에 Flyway `repair`로
+체크섬을 맞춰야 한다. 신규 DB는 V1부터 그대로 적용하면 된다.
 
 `V2` 가 `postgis` · `pg_trgm` 확장을 만든다. 확장 생성에는 보통 슈퍼유저 권한이 필요하니
 관리형 DB(RDS 등)에서는 관리자 계정으로 한 번 만들어 두고 애플리케이션 계정에는 권한을 주지 않아도 된다.
@@ -152,6 +157,7 @@ MEDIA_PUBLIC_BASE_URL=https://cdn.example.com
 | `API-PST-002` | `POST /api/v1/posts/tier-preview` | 2.2 위치 확인 > 등급 미리보기 | `PST-022`~`PST-028`, `PST-046`~`PST-049` |
 | `API-PST-003` | `POST /api/v1/posts` | 2.3 사진·캡션·태그 > 게시글 등록 | `PST-001`~`PST-004`, `PST-016`~`PST-021`, `PST-029`~`PST-031` |
 | `API-PLC-001`~`009` | `/api/v1/regions`, `/api/v1/places*` | 2.1 장소 설정 · 6.1 장소 정보 | `PLC-001`~`PLC-023` |
+| `API-MAP-001`~`004` | `/api/v1/map/*` | 지역·히트맵·사진 마커·셀 상세 | `MAP-001`~`MAP-030` 백엔드 범위 |
 | `API-ADM-001`~`003` | `/api/v1/admin/batches*`, `/api/v1/admin/sync-logs` | 관리자 장소 동기화 | `PLC-008`~`PLC-010` |
 | `API-ADM-005`~`010`, `013` | `/api/v1/admin/events*`, `/api/v1/admin/places*`, `/api/v1/admin/reports*` | 관리자 반경·신고 처리 | `PLC-022`, `PLC-023` |
 

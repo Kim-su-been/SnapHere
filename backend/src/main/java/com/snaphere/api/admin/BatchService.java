@@ -6,6 +6,8 @@ import com.snaphere.api.common.error.ErrorCode;
 import com.snaphere.api.common.web.CursorCodec;
 import com.snaphere.api.common.web.CursorPage;
 import com.snaphere.api.config.PlaceTaskConfig;
+import com.snaphere.api.map.MapAggregationService;
+import com.snaphere.api.map.MapPeriod;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -28,25 +30,46 @@ public class BatchService {
     private final JdbcClient jdbc;
     private final PlaceSyncWorker worker;
     private final TaskExecutor taskExecutor;
+    private final MapAggregationService mapAggregation;
 
     public BatchService(JdbcClient jdbc, PlaceSyncWorker worker,
-                        @Qualifier(PlaceTaskConfig.PLACE_TASK_EXECUTOR) TaskExecutor taskExecutor) {
+                        @Qualifier(PlaceTaskConfig.PLACE_TASK_EXECUTOR) TaskExecutor taskExecutor,
+                        MapAggregationService mapAggregation) {
         this.jdbc = jdbc; this.worker = worker; this.taskExecutor = taskExecutor;
+        this.mapAggregation = mapAggregation;
     }
 
     public BatchDtos.BatchRun start(String jobType, BatchDtos.StartRequest request) {
-        if (!"PLACE_SYNC".equals(jobType)) throw new ApiException(ErrorCode.COMMON_400);
+        if (!List.of("PLACE_SYNC", "HEATMAP_RECALC").contains(jobType)) throw new ApiException(ErrorCode.COMMON_400);
         Integer area = request == null ? null : request.areaCode();
         Integer type = request == null ? null : request.contentTypeId();
+        if ("HEATMAP_RECALC".equals(jobType) && (area != null || type != null)) throw new ApiException(ErrorCode.COMMON_400);
         if (area != null && !AREAS.contains(area)) throw new ApiException(ErrorCode.COMMON_400);
         if (type != null && !TYPES.contains(type)) throw new ApiException(ErrorCode.COMMON_400);
         try {
             long runId = jdbc.sql("INSERT INTO batch_runs(job_type,status) VALUES (:job,'QUEUED') RETURNING run_id")
                     .param("job", jobType).query(Long.class).single();
-            taskExecutor.execute(() -> execute(runId, area, type));
+            taskExecutor.execute(() -> {
+                if ("HEATMAP_RECALC".equals(jobType)) executeHeatmap(runId);
+                else execute(runId, area, type);
+            });
             return get(runId);
         } catch (DuplicateKeyException e) {
             throw new ApiException(ErrorCode.BATCH_ALREADY_RUNNING);
+        }
+    }
+
+    public void executeHeatmap(long runId) {
+        jdbc.sql("UPDATE batch_runs SET status='RUNNING',started_at=now() WHERE run_id=:id").param("id", runId).update();
+        int processed = 0;
+        try {
+            for (MapPeriod period : MapPeriod.values()) processed += mapAggregation.rebuild(period);
+            jdbc.sql("UPDATE batch_runs SET status='SUCCESS',processed_count=:count,finished_at=now() WHERE run_id=:id")
+                    .param("count", processed).param("id", runId).update();
+        } catch (RuntimeException failure) {
+            jdbc.sql("UPDATE batch_runs SET status='FAIL',processed_count=:count,failed_count=1,finished_at=now() WHERE run_id=:id")
+                    .param("count", processed).param("id", runId).update();
+            log.error("지도 수동 집계 실패. runId={}", runId, failure);
         }
     }
 

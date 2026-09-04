@@ -5,9 +5,9 @@
 
 | 문서 | 파일 | 현재 버전 |
 | --- | --- | --- |
-| 요구사항 · 기능 명세서 | [specs/snaphere-requirements-spec-v1.1.3.xlsx](specs/snaphere-requirements-spec-v1.1.3.xlsx) | **v1.1.3** |
-| API 명세서 · ERD | [specs/snaphere-api-spec-v1.1.3.xlsx](specs/snaphere-api-spec-v1.1.3.xlsx) | **v1.1.3** |
-| 데이터 설계 (DBML) | `docs/db-schema.dbml` · `docs/db-design.md` | **v1.1.3** |
+| 요구사항 · 기능 명세서 | [specs/snaphere-requirements-spec-v1.1.5.xlsx](specs/snaphere-requirements-spec-v1.1.5.xlsx) | **v1.1.5** |
+| API 명세서 · ERD | [specs/snaphere-api-spec-v1.1.5.xlsx](specs/snaphere-api-spec-v1.1.5.xlsx) | **v1.1.5** |
+| 데이터 설계 | `04-data-design.md` · `05-erd-reference.md` · `12-db-schema.dbml` | **v1.1.5** |
 
 > 데이터 설계 두 파일은 `docs/backend-db-design` 브랜치에 있다. 그 PR이 `develop`에 병합되면 같은 `docs/` 폴더에서 함께 보인다.
 
@@ -66,6 +66,7 @@
 | **v1.1.3** | **2026-09-01** | **요구사항 / API / 데이터 설계** | **세 문서 버전 통일.** 요구사항 2건 반영 + 요구사항 `6. 데이터 설계` 시트를 DBML v1.1.3(29개 테이블)에 동기화 | 요구사항 2 · 데이터 설계 14 |
 
 | **v1.1.4** | **2026-09-03** | **요구사항 / API / 데이터 설계** | **백엔드 구현 정합.** `users` 식별자 `uuid` 정정 · `images[]` 원소 구조 정의 · `sortOrder` 기준 정정 · `places.status` 와 `reports` 운영 검토 컬럼 반영 | 요구사항 1 · API 5 · 데이터 설계 3 |
+| **v1.1.5** | **2026-09-05** | **MAP / PLC API / 데이터 설계** | **지도 백엔드 구현 정합.** 줌·폴백·500셀 제한 확정, 썸네일 URL 사전 저장, 기간 포함 cellKey, 최근접 거리 응답, 주변 장소 페이징 표기 제거 | 요구사항 5 · API 7 · 데이터 설계 3 |
 
 > `v1.1.1` · `v1.1.2`는 API·DBML만 쓰던 번호다. 통합 번호 체계를 도입하면서 요구사항 명세서 기준으로는 **결번**이다.
 
@@ -253,14 +254,28 @@
 
 ---
 
-## 다음 예정 (v1.1.5 후보)
+### v1.1.5 (2026-09-05) · 지도 백엔드 구현 정합
+
+| 대상 | 구분 | 변경 전 → 변경 후 | 근거 |
+| --- | --- | --- | --- |
+| `MAP-009`, `MAP-014`, `MAP-018` | 변경 | 격자 전환·폴백 기준·셀 한도 미정 → 줌 경계 4단계, 5건 미만 폴백, 상위 500셀·`truncated` | DEC-20260905-004 |
+| `MAP-025` | 변경 | 썸네일 저장 구조 미정 → `sample_post_ids`와 정렬이 같은 `sample_thumbnail_urls` | DEC-20260905-005 |
+| `MAP-028`, `MAP-029` | 변경 | 최근접 거리·비회원 인증값 표현 미정 → `nearestDistanceM`, 비회원 `isVerifiable=null` | DEC-20260905-006 |
+| `API-MAP-002` | 변경 | 셀 초과 시 422 가능 → 상위 500셀 200 응답, `forceRefresh`는 응답 캐시만 우회 | MAP-015, MAP-018 |
+| `API-MAP-003`, `API-MAP-004` | 변경 | 좌표 문자열 `cellKey` → 기간·격자·좌표 인덱스를 포함한 불투명 키 | MAP-017, MAP-020 |
+| `API-PLC-004` | 변경 | 응답에 페이지 정보 없는 `cursor`·`size` 요청 → 거리순 최대 50개 고정, 두 파라미터 삭제 | MAP-026~MAP-030 |
+| `NearbyPlaceResult` | 신규 | 최근접 거리 필드 없음 → 후보가 없을 때 `nearestDistanceM` 반환 | MAP-028 |
+| `heatmap_cells` | 변경 | 후보 게시글 ID만 저장 → 동일 순서의 썸네일 URL 배열과 정수 좌표 인덱스 저장 | MAP-009, MAP-025 |
+| `HeatmapCell.visitCount` | 정정 | 기간별 방문 원천 미구현인데 예시값 제공 → VST 구현 전까지 0 | DEC-20260905-007 |
+
+## 다음 예정
 
 | 대상 | 내용 | 근거 |
 | --- | --- | --- |
 | DBML `users` | `terms_agreed_at` 추가 — 약관 동의가 Must인데 DBML에 컬럼이 없다 | `USER-006` |
 | ~~DBML `places`~~ | `status` 추가 — **v1.1.4 완료** | `PLC-023` |
 | ~~DBML `reports`~~ | `detail` · `action` · `reviewed_at` 추가 — **v1.1.4 완료** | `SYS-017` |
-| 요구사항 `MAP-025` | 썸네일 사전 저장 — `heatmap_cells.sample_thumbnails` 를 둘지 결정 | DBML 미결정 9 |
+| ~~요구사항 `MAP-025`~~ | `sample_post_ids`와 정렬이 같은 `sample_thumbnail_urls` 저장 — **v1.1.5 완료** | DBML 미결정 9 |
 | 요구사항 `SCH-011`, `VST-006` | 최근 검색어·최근 본 장소 저장소 결정 (앱 로컬 / Redis / DB) | DBML 미결정 10 |
 | 요구사항 `RNK-013` | 운영자 지정 장소 — `places.is_curated` | DBML 미결정 11 |
 | 요구사항 `PST-043`, `PLC-023` | 신고 대상 범위에 댓글·사용자를 넣을지 | DBML 미결정 12 |

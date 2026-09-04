@@ -52,7 +52,8 @@ public class PlaceService {
         List<PlaceDtos.PlaceSummary> candidates = places.nearby(lat, lng, radiusM, 50,
                 actor == null ? null : actor.userId());
         PlaceDtos.PlaceSummary exact = candidates.stream().filter(p -> Boolean.TRUE.equals(p.isVerifiable())).findFirst().orElse(null);
-        return new PlaceDtos.NearbyPlaceResult(exact, candidates, exact == null, radiusM);
+        Integer nearestDistance = candidates.isEmpty() ? places.nearestDistance(lat, lng) : null;
+        return new PlaceDtos.NearbyPlaceResult(exact, candidates, exact == null, radiusM, nearestDistance);
     }
 
     public PlaceDtos.PlaceDetail detail(String externalId, String acceptLanguage, CurrentUser actor) {

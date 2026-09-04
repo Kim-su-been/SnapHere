@@ -1,8 +1,8 @@
-// SnapHere 데이터베이스 스키마 — 게시글 도메인
+// SnapHere 데이터베이스 스키마 — 게시글·지도 도메인 v1.1.5
 // Percona PostgreSQL 17.10.2 + PostGIS 3.5.7 · dbdiagram.io 붙여넣기용
 //
-// 범위: 게시글 등록(API-PST-003)에 필요한 8개 테이블만 담는다.
-//   소셜·이벤트·뱃지·방문·집계·알림·운영 테이블은 담당자가 별도 브랜치에서 추가한다.
+// 범위: 게시글 등록(API-PST-003)과 지도 집계(API-MAP-001~004)에 필요한 테이블을 담는다.
+//   소셜·이벤트·뱃지·방문·알림·운영 테이블은 담당자가 별도 브랜치에서 추가한다.
 //   전체 29개 테이블 설계는 docs/04-data-design.md · docs/05-erd-reference.md 참조.
 //
 // users 는 팀원의 V1__auth_schema.sql 로 이미 존재한다. id 타입이 uuid 이므로
@@ -172,6 +172,56 @@ Table post_tags {
   note: '게시글 수정 시 이 연결을 전부 지우고 다시 넣는다. 차이 계산은 버그를 부른다 (CMU-032).'
 }
 
+// ─────────────────────────────────────────────── 지도 집계
+
+Table heatmap_cells {
+  cell_id               bigint         [pk, increment]
+  period                heatmap_period [not null]
+  grid_level            smallint       [not null, note: '0=1°, 1=0.1°, 2=0.01°, 3=0.001°']
+  lat_index             integer        [not null]
+  lng_index             integer        [not null]
+  lat                   double         [not null, note: '셀 중심 위도']
+  lng                   double         [not null, note: '셀 중심 경도']
+  post_count            integer        [not null]
+  visit_count           integer        [not null, default: 0, note: 'VST 구현 전까지 0']
+  user_count            integer        [not null]
+  top_place_id          bigint         [ref: > places.place_id]
+  sample_post_ids       bigint[]       [not null, note: '후보 최대 10개. 논리 참조']
+  sample_thumbnail_urls text[]         [not null, note: 'sample_post_ids와 같은 인덱스']
+  last_posted_at        timestamptz
+  calculated_at         timestamptz    [not null]
+
+  indexes {
+    (period, grid_level, lat_index, lng_index) [unique, name: 'uk_heatmap_cell']
+    (period, grid_level, lat, lng) [name: 'idx_heatmap_viewport']
+  }
+  note: '기간·격자별 사전 집계 (MAP-008~025). intensity는 조회 시 로그 정규화한다.'
+}
+
+Table region_stats {
+  area_code              integer        [not null, ref: > regions.area_code]
+  period                 heatmap_period [not null]
+  post_count             integer        [not null]
+  contributor_count      integer        [not null]
+  representative_post_id bigint         [ref: > posts.post_id]
+  calculated_at          timestamptz    [not null]
+
+  indexes {
+    (area_code, period) [pk]
+  }
+}
+
+Table heatmap_refresh_state {
+  period          heatmap_period [not null]
+  grid_level      smallint       [not null]
+  calculated_at   timestamptz    [not null]
+  next_refresh_at timestamptz    [not null]
+
+  indexes {
+    (period, grid_level) [pk]
+  }
+}
+
 // ─────────────────────────────────────────────── enum
 // 실제 DDL 은 varchar + CHECK 제약으로 만든다. PostgreSQL 네이티브 enum 은
 // 값 추가 시 마이그레이션이 까다롭고 JPA @Enumerated(STRING) 와 궁합이 나쁘다.
@@ -181,3 +231,4 @@ Enum place_status { ACTIVE HIDDEN DELETED }
 Enum post_status  { ACTIVE HIDDEN DELETED }
 Enum trust_tier   { HIGH MEDIUM LOW }
 Enum photo_source { CAMERA ALBUM }
+Enum heatmap_period { LAST_1H LAST_24H WEEKLY MONTHLY }

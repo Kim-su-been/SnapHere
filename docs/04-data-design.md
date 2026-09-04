@@ -222,7 +222,7 @@ BDG-007. 허용하는 `type`은 아래 네 가지로 고정한다.
 | `MONTHLY` | 최근 30일 | 월간 |
 
 네 값 모두 조회 시점에서 거꾸로 세는 **롤링 윈도우**다. 자정 기준이 아니므로 자정 직후에도
-비지 않는다. `LAST_1H`가 기준치 미만이면 `LAST_24H`로 폴백한다(MAP-014).
+비지 않는다. 요청 화면의 `LAST_1H` 게시글이 5건 미만이면 `LAST_24H`로 폴백한다(MAP-014).
 
 집계 **주기**(`LAST_1H` 1분, 그 외 10분)는 배치 스케줄이고 스키마에는 없다. 마지막 실행 시각만
 `calculated_at`에 남는다.
@@ -266,7 +266,7 @@ UNIQUE (recipient_id, actor_id, type, target_type, target_id)
 
 | 요구사항 | 정할 것 |
 | --- | --- |
-| MAP-025 | `heatmap_cells`에 썸네일 URL 배열을 둘지. 없으면 마커를 그릴 때 `posts`·`post_images` 조인이 생겨 "미리 저장해 바로 그린다"는 취지가 깨진다 |
+| MAP-025 | 결정 완료 — `sample_post_ids`와 같은 인덱스로 대응하는 `sample_thumbnail_urls` 배열을 `heatmap_cells`에 저장한다. |
 | SCH-011, VST-006 | 최근 검색어·최근 본 장소를 앱 로컬 / Redis / DB 중 어디에 둘지. 현재 스키마에는 없다 |
 | RNK-013 | 추천할 것이 없을 때 쓰는 운영자 지정 장소 목록. `places.is_curated` 정도 |
 | PST-043, PLC-023 | 신고 대상 범위. 요구사항 근거는 게시글·장소뿐인데 `report_target`은 댓글·사용자까지 열어 두었다. 댓글 신고를 넣으면 `comment_status`에 `BLINDED`도 추가해야 한다 |

@@ -95,6 +95,11 @@ public class PostResponseAssembler {
         return result;
     }
 
+    /** 비회원 목록 조립용 호환 오버로드. */
+    public List<PostSummaryResponse> summaries(List<PostEntity> posts) {
+        return summaries(posts, Optional.empty());
+    }
+
     /** 상세 응답. 사진 전체와 태그, 판정 근거를 함께 담는다. */
     public PostDetailResponse detail(PostEntity post, Optional<UUID> viewerId) {
         Batch batch = load(List.of(post), viewerId);
