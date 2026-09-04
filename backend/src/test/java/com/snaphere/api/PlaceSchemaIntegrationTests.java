@@ -22,7 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PlaceSchemaIntegrationTests {
     @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(
-            DockerImageName.parse("postgis/postgis:16-3.4").asCompatibleSubstituteFor("postgres"));
+            DockerImageName.parse("percona/percona-distribution-postgresql-with-postgis:17.10-2")
+                    .asCompatibleSubstituteFor("postgres"));
     @Container
     static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7.4-alpine"))
             .withExposedPorts(6379);
@@ -39,9 +40,10 @@ class PlaceSchemaIntegrationTests {
     @Autowired JdbcClient jdbc;
 
     @Test
-    void 시도_코드는_비연속_17개이고_PostGIS가_활성화된다() {
+    void 시도_코드는_비연속_17개이고_고정된_DB_버전과_PostGIS가_활성화된다() {
         assertThat(jdbc.sql("SELECT area_code FROM regions ORDER BY area_code").query(Integer.class).list())
                 .containsExactly(1,2,3,4,5,6,7,8,31,32,33,34,35,36,37,38,39);
-        assertThat(jdbc.sql("SELECT PostGIS_Version()").query(String.class).single()).isNotBlank();
+        assertThat(jdbc.sql("SHOW server_version").query(String.class).single()).startsWith("17.10");
+        assertThat(jdbc.sql("SELECT PostGIS_Lib_Version()").query(String.class).single()).isEqualTo("3.5.7");
     }
 }

@@ -7,6 +7,16 @@ plugins {
 group = "com.snaphere"
 version = "1.1.3"
 
+val requiredJdkVersion = "21.0.11"
+val currentJdkVersion = System.getProperty("java.version").substringBefore('+').substringBefore('-')
+
+if (currentJdkVersion != requiredJdkVersion) {
+    throw GradleException(
+        "SnapHere backend requires JDK $requiredJdkVersion, but Gradle is running on JDK $currentJdkVersion. " +
+            "Set JAVA_HOME to a JDK $requiredJdkVersion installation."
+    )
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)

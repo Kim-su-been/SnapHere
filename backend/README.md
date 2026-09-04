@@ -1,6 +1,6 @@
 # SnapHere API (backend)
 
-Spring Boot 3.5 · Java 21 · Gradle (Kotlin DSL) 기반 백엔드 API 서버.
+Spring Boot 3.5 · JDK 21.0.11 · Gradle 8.14 (Kotlin DSL) 기반 백엔드 API 서버.
 
 명세는 저장소 문서를 정본으로 삼는다.
 
@@ -17,18 +17,21 @@ Spring Boot 3.5 · Java 21 · Gradle (Kotlin DSL) 기반 백엔드 API 서버.
 
 ## 로컬 실행
 
-저장소에 포함된 Gradle 8.14 래퍼로 실행한다.
+다음 버전을 프로젝트 기준으로 고정한다.
+
+| 구성 요소 | 고정 버전 |
+| --- | --- |
+| JDK | 21.0.11 (벤더 무관) |
+| Gradle | 8.14 |
+| PostgreSQL | Percona Distribution 17.10.2 |
+| PostGIS | 3.5.7 |
+
+JDK 21.0.11을 설치하고 `JAVA_HOME`을 해당 설치 경로로 지정한 뒤, 저장소에 포함된 Gradle
+8.14 Wrapper로 실행한다. `.java-version`과 빌드 검사가 다른 JDK 패치 버전의 사용을 막는다.
 
 ```bash
 ./gradlew build      # 컴파일 + 테스트
 ./gradlew bootRun    # 로컬 실행 (기본 8080)
-```
-
-Gradle 이 없으면 Docker 로도 된다.
-
-```bash
-docker run --rm -v "$(pwd):/app" -v snaphere-gradle:/home/gradle/.gradle -w /app \
-  gradle:8.14-jdk21 gradle build --no-daemon
 ```
 
 ## 폴더 구조
@@ -68,7 +71,8 @@ backend/src/main/java/com/snaphere/api/
 
 ## 데이터베이스 준비
 
-PostgreSQL 17.11 + PostGIS 3.5.2 가 필요하다. 스키마는 Flyway 가 만든다 — 손으로 만들지 않는다.
+Percona Distribution for PostgreSQL 17.10.2 + PostGIS 3.5.7이 필요하다. 스키마는 Flyway가
+만든다 — 손으로 만들지 않는다.
 
 | 파일 | 내용 |
 | --- | --- |
@@ -86,8 +90,11 @@ Docker 로 띄우는 것이 가장 간단하다. PostGIS 가 포함된 이미지
 ```bash
 docker run -d --name snaphere-db -p 5432:5432 \
   -e POSTGRES_DB=snaphere -e POSTGRES_USER=snaphere -e POSTGRES_PASSWORD=snaphere \
-  postgis/postgis:17.11-3.5.2
+  percona/percona-distribution-postgresql-with-postgis:17.10-2
 ```
+
+Percona Distribution 릴리스 `17.10.2`에 대응하는 PostGIS 포함 Docker 이미지 태그는
+`17.10-2`다.
 
 `spring.jpa.hibernate.ddl-auto` 는 `validate` 다. 엔티티와 마이그레이션이 어긋나면 애플리케이션이
 기동하지 않고 어느 컬럼이 다른지 알려 준다 — 스키마를 Hibernate 가 바꾸는 일은 없다.

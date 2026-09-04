@@ -255,15 +255,15 @@ enum은 마지막 값에 세미콜론이 붙어서 **누가 추가하든 그 줄
 
 | 항목 | 버전 |
 | --- | --- |
-| PostgreSQL | **17.11** |
-| PostGIS | **3.5.2** |
-| JDK | **21** |
+| PostgreSQL | **Percona Distribution 17.10.2** |
+| PostGIS | **3.5.7** |
+| JDK | **21.0.11** |
 | Gradle | **8.14** |
 
 ```bash
 docker run -d --name snaphere-db -p 5432:5432 \
   -e POSTGRES_DB=snaphere -e POSTGRES_USER=snaphere -e POSTGRES_PASSWORD=snaphere \
-  postgis/postgis:17.11-3.5.2
+  percona/percona-distribution-postgresql-with-postgis:17.10-2
 ```
 
 롤링 태그(`17-3.5`)를 쓰지 않는다. 받는 시점마다 내용물이 달라져 재현이 안 된다.
