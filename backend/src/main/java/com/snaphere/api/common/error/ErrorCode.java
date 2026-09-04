@@ -53,7 +53,11 @@ public enum ErrorCode {
     POST_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "error.post.dailyLimit"),
     POST_PLACE_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "error.post.placeDailyLimit"),
     POST_DUPLICATE_IMAGE(HttpStatus.CONFLICT, "error.post.duplicateImage"),
-    POST_UPLOAD_SUSPENDED(HttpStatus.FORBIDDEN, "error.post.uploadSuspended");
+    POST_UPLOAD_SUSPENDED(HttpStatus.FORBIDDEN, "error.post.uploadSuspended"),
+
+    // 신고 (PST-043 ~ PST-045, SYS-017)
+    REPORT_DUPLICATE(HttpStatus.CONFLICT, "error.report.duplicate"),
+    REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "error.report.notFound");
 
     private final HttpStatus status;
     private final String messageKey;
