@@ -59,8 +59,10 @@ public class PostQueryController {
             @RequestParam(required = false) Integer size,
             HttpServletRequest httpRequest) {
 
+        Optional<UUID> viewerId = currentUserProvider.optional(httpRequest)
+                .map(CurrentUser::userId);
         CursorPage<PostSummaryResponse> page =
-                postFeedService.list(areaCode, placeId, tag, period, cursor, size);
+                postFeedService.list(areaCode, placeId, tag, period, cursor, size, viewerId);
 
         return ResponseEntity.ok(ApiResponse.ok(page,
                 TraceIdFilter.currentTraceId(httpRequest)));
@@ -80,8 +82,10 @@ public class PostQueryController {
             @RequestParam(required = false) Integer size,
             HttpServletRequest httpRequest) {
 
+        Optional<UUID> viewerId = currentUserProvider.optional(httpRequest)
+                .map(CurrentUser::userId);
         CursorPage<PostSummaryResponse> page =
-                postFeedService.popular(period, areaCode, cursor, size);
+                postFeedService.popular(period, areaCode, cursor, size, viewerId);
 
         return ResponseEntity.ok(ApiResponse.ok(page,
                 TraceIdFilter.currentTraceId(httpRequest)));

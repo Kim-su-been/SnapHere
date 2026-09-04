@@ -55,6 +55,10 @@ public interface PostRankingRepository extends JpaRepository<PostRankingEntity, 
      * <p>가중치는 랭킹 점수 규약을 따른다 — 좋아요 1.0 · 댓글 1.5 · 조회 0.05 에 등급 가중치
      * (높음 3.0 · 보통 1.8 · 낮음 0.5)를 곱한다 (RNK-001).
      *
+     * <p><b>자기 게시글에 누른 좋아요는 뺀다 (PST-041).</b> 표시되는 {@code like_count} 에서는
+     * 빼지 않는다 — 화면의 숫자는 실제 좋아요 수여야 하고, 요구사항이 제외하라는 것은 점수와
+     * 순위다. 그래서 여기서만 차감한다.
+     *
      * <p>동점은 {@code post_id} 오름차순으로 가른다. 결정적 보조 정렬이 없으면 같은 데이터로
      * 배치를 두 번 돌릴 때 순위가 흔들린다 (JOB-013).
      *
@@ -68,11 +72,21 @@ public interface PostRankingRepository extends JpaRepository<PostRankingEntity, 
                    row_number() over (order by s.score desc, s.post_id asc),
                    :calculatedAt
               from (select p.post_id as post_id,
-                           (p.like_count * 1.0 + p.comment_count * 1.5 + p.view_count * 0.05)
+                           ((p.like_count - coalesce(sl.self_like_count, 0)) * 1.0
+                            + p.comment_count * 1.5
+                            + p.view_count * 0.05)
                            * (case p.tier when 'HIGH' then 3.0
                                           when 'MEDIUM' then 1.8
                                           else 0.5 end) as score
                       from posts p
+                      left join (select l.target_id as post_id,
+                                        count(*) as self_like_count
+                                   from likes l
+                                   join posts owner on owner.post_id = l.target_id
+                                  where l.target_type = 'POST'
+                                    and l.user_id = owner.user_id
+                                  group by l.target_id) sl
+                             on sl.post_id = p.post_id
                      where p.status = 'ACTIVE'
                        and p.created_at >= :createdFrom) s
             """, nativeQuery = true)
