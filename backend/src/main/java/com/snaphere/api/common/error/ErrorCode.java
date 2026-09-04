@@ -45,6 +45,9 @@ public enum ErrorCode {
     COMMENT_NOT_AUTHOR(HttpStatus.FORBIDDEN, "error.comment.notAuthor"),
     COMMENT_LENGTH_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "error.comment.lengthInvalid"),
 
+    // 태그 (CMU-030, SCH-007)
+    TAG_NOT_FOUND(HttpStatus.NOT_FOUND, "error.tag.notFound"),
+
     // 게시글 (PST-*)
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "error.post.notFound"),
     POST_NOT_VISIBLE(HttpStatus.NOT_FOUND, "error.post.notVisible"),
