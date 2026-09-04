@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -83,7 +84,7 @@ public class PostEditService {
         if (request.hasImageOrder()) {
             reorderImages(post.getPostId(), request.imageOrder());
         }
-        return assembler.detail(post);
+        return assembler.detail(post, Optional.of(userId));
     }
 
     /**

@@ -378,5 +378,5 @@
 
 ---
 
-원본 스프레드시트: [`specs/snaphere-requirements-spec-v1.1.3.xlsx`](specs/snaphere-requirements-spec-v1.1.3.xlsx) · [`specs/snaphere-api-spec-v1.1.3.xlsx`](specs/snaphere-api-spec-v1.1.3.xlsx)
+원본 스프레드시트: [`specs/snaphere-requirements-spec-v1.1.4.xlsx`](specs/snaphere-requirements-spec-v1.1.4.xlsx) · [`specs/snaphere-api-spec-v1.1.4.xlsx`](specs/snaphere-api-spec-v1.1.4.xlsx)
 변경 이력: [`08-spec-changelog.md`](08-spec-changelog.md)

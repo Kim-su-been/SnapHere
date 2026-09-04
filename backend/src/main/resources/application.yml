@@ -51,6 +51,11 @@ snaphere:
     google-client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
     jwt-secret: ${SNAPHERE_JWT_SECRET:}
     terms-version: ${SNAPHERE_TERMS_VERSION:2026-08-01}
+  share:
+    web-base-url: ${SNAPHERE_SHARE_BASE_URL:https://snaphere.app}  # 앱 설치 시 같은 주소가 앱으로 열린다 (CMU-021)
+    path-prefix: /p/
+    default-title: SnapHere              # OG 태그는 완성 문장이어야 한다 — SYS-010 의 예외 (CMU-020)
+    default-description: SnapHere에서 사진을 확인하세요
   media:
     provider: ${MEDIA_PROVIDER:stub}
     bucket: ${MEDIA_S3_BUCKET:}

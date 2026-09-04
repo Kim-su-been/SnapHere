@@ -68,7 +68,7 @@ backend/src/main/java/com/snaphere/api/
 
 ## 데이터베이스 준비
 
-PostgreSQL 16 + PostGIS 3 이 필요하다. 스키마는 Flyway 가 만든다 — 손으로 만들지 않는다.
+PostgreSQL 17.11 + PostGIS 3.5.2 가 필요하다. 스키마는 Flyway 가 만든다 — 손으로 만들지 않는다.
 
 | 파일 | 내용 |
 | --- | --- |
@@ -86,7 +86,7 @@ Docker 로 띄우는 것이 가장 간단하다. PostGIS 가 포함된 이미지
 ```bash
 docker run -d --name snaphere-db -p 5432:5432 \
   -e POSTGRES_DB=snaphere -e POSTGRES_USER=snaphere -e POSTGRES_PASSWORD=snaphere \
-  postgis/postgis:16-3.4
+  postgis/postgis:17.11-3.5.2
 ```
 
 `spring.jpa.hibernate.ddl-auto` 는 `validate` 다. 엔티티와 마이그레이션이 어긋나면 애플리케이션이

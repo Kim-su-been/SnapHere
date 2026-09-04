@@ -17,6 +17,9 @@ public interface TagRepository extends JpaRepository<TagEntity, Long> {
 
     List<TagEntity> findByNormalizedNameIn(Collection<String> normalizedNames);
 
+    /** 입력 접두어로 기존 태그를 찾는다. 앞부분만 맞춘다 — LIKE '%x%' 는 인덱스를 못 쓴다. (CMU-025) */
+    List<TagEntity> findTop5ByNormalizedNameStartingWithOrderByUsageCountDesc(String prefix);
+
     @Modifying
     @Query("update TagEntity t set t.usageCount = t.usageCount + :delta where t.tagId in :tagIds")
     int addUsageCount(@Param("tagIds") Collection<Long> tagIds, @Param("delta") int delta);

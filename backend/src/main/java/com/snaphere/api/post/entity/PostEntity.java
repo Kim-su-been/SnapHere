@@ -128,6 +128,21 @@ public class PostEntity {
         this.updatedAt = OffsetDateTime.now();
     }
 
+    /**
+     * 신고 누적으로 가린다. (PST-045)
+     *
+     * <p>삭제가 아니다. 작성자에게는 계속 보이고 운영자가 복구할 수 있다 (SYS-017).
+     * 이미 삭제된 게시글은 건드리지 않는다 — 가림은 삭제보다 약한 상태라 되돌리는 셈이 된다.
+     */
+    public boolean blindByReports() {
+        if (status != PostStatus.ACTIVE) {
+            return false;
+        }
+        this.status = PostStatus.HIDDEN;
+        this.updatedAt = OffsetDateTime.now();
+        return true;
+    }
+
     /** 논리 삭제. 행을 지우지 않아 방문 기록·뱃지가 함께 사라지지 않는다. (PST-043) */
     public void softDelete() {
         this.status = PostStatus.DELETED;

@@ -57,5 +57,5 @@
 | DEC-20260903-015 | 2026-09-03 | 사용자 | 확정·유지 | 기능 브랜치의 독립 Auth·JDBC·Flyway 구조 유지 / 최신 `upstream/develop`의 공용 Auth·JPA·Flyway 구조에 PLC 기능 통합 | 최신 `upstream/develop`의 Auth·JPA, Gradle 8.14 Wrapper와 Flyway `V1`~`V6`를 보존하고, 중복 인증·마이그레이션을 제거한 뒤 PLC 기능을 공용 인증 구조와 `V7` 이후 마이그레이션으로 통합한다. | 병합된 팀원 기능을 보존하고 중복 빈·Flyway 버전 충돌·스키마 불일치를 방지 | 백엔드 인증, 빌드 도구, 장소 모델, DB 마이그레이션, PR 충돌 해결 | PLC-001~PLC-023, AUTH-001~AUTH-009, PST-001~PST-045 | DEC-20260903-010·011을 대체. 사용자의 충돌 해결 실행 승인 |
 ---
 
-원본 스프레드시트: [`specs/snaphere-requirements-spec-v1.1.3.xlsx`](specs/snaphere-requirements-spec-v1.1.3.xlsx) · [`specs/snaphere-api-spec-v1.1.3.xlsx`](specs/snaphere-api-spec-v1.1.3.xlsx)
+원본 스프레드시트: [`specs/snaphere-requirements-spec-v1.1.4.xlsx`](specs/snaphere-requirements-spec-v1.1.4.xlsx) · [`specs/snaphere-api-spec-v1.1.4.xlsx`](specs/snaphere-api-spec-v1.1.4.xlsx)
 변경 이력: [`08-spec-changelog.md`](08-spec-changelog.md)

@@ -18,6 +18,10 @@ import com.snaphere.api.post.repository.PostImageRepository;
 import com.snaphere.api.post.repository.PostTagRepository;
 import com.snaphere.api.post.repository.TagRepository;
 import com.snaphere.api.post.repository.TierLogRepository;
+import com.snaphere.api.reaction.BookmarkTargetType;
+import com.snaphere.api.reaction.LikeTargetType;
+import com.snaphere.api.reaction.repository.BookmarkRepository;
+import com.snaphere.api.reaction.repository.LikeRepository;
 import com.snaphere.api.user.AuthorSnapshot;
 import com.snaphere.api.user.AuthorSnapshotReader;
 import org.springframework.stereotype.Component;
@@ -28,6 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -48,6 +53,8 @@ public class PostResponseAssembler {
     private final TagRepository tags;
     private final PlaceRepository places;
     private final TierLogRepository tierLogs;
+    private final LikeRepository likes;
+    private final BookmarkRepository bookmarks;
     private final AuthorSnapshotReader authors;
     private final MediaUrlResolver mediaUrls;
 
@@ -56,6 +63,8 @@ public class PostResponseAssembler {
                                  TagRepository tags,
                                  PlaceRepository places,
                                  TierLogRepository tierLogs,
+                                 LikeRepository likes,
+                                 BookmarkRepository bookmarks,
                                  AuthorSnapshotReader authors,
                                  MediaUrlResolver mediaUrls) {
         this.postImages = postImages;
@@ -63,16 +72,22 @@ public class PostResponseAssembler {
         this.tags = tags;
         this.places = places;
         this.tierLogs = tierLogs;
+        this.likes = likes;
+        this.bookmarks = bookmarks;
         this.authors = authors;
         this.mediaUrls = mediaUrls;
     }
 
-    /** 목록 응답. 입력 순서를 그대로 유지한다 — 정렬은 조회 쪽이 이미 정했다. */
-    public List<PostSummaryResponse> summaries(List<PostEntity> posts) {
+    /**
+     * 목록 응답. 입력 순서를 그대로 유지한다 — 정렬은 조회 쪽이 이미 정했다.
+     *
+     * @param viewerId 로그인 사용자. 비회원이면 비어 있고 {@code isLiked} 는 null 이 된다
+     */
+    public List<PostSummaryResponse> summaries(List<PostEntity> posts, Optional<UUID> viewerId) {
         if (posts.isEmpty()) {
             return List.of();
         }
-        Batch batch = load(posts);
+        Batch batch = load(posts, viewerId);
         List<PostSummaryResponse> result = new ArrayList<>(posts.size());
         for (PostEntity post : posts) {
             result.add(summary(post, batch));
@@ -81,8 +96,8 @@ public class PostResponseAssembler {
     }
 
     /** 상세 응답. 사진 전체와 태그, 판정 근거를 함께 담는다. */
-    public PostDetailResponse detail(PostEntity post) {
-        Batch batch = load(List.of(post));
+    public PostDetailResponse detail(PostEntity post, Optional<UUID> viewerId) {
+        Batch batch = load(List.of(post), viewerId);
         List<PostImageResponse> images = batch.images.getOrDefault(post.getPostId(), List.of());
         return PostDetailResponse.of(post, summary(post, batch), images,
                 batch.tags.getOrDefault(post.getPostId(), List.of()), tierResult(post));
@@ -105,8 +120,10 @@ public class PostResponseAssembler {
             tagResponses.add(TagSummaryResponse.from(
                     resolvedTags.get(i), i < tagLinks.size() ? tagLinks.get(i) : null));
         }
+        // 방금 만든 게시글이다. 작성자가 아직 좋아요·저장을 누를 수 없으므로 둘 다 false 다.
         PostSummaryResponse summary = PostSummaryResponse.of(
-                post, author(post.getUserId()), PlaceSummaryResponse.from(place), imageResponses);
+                post, author(post.getUserId()), PlaceSummaryResponse.from(place), imageResponses,
+                false, false);
         return PostDetailResponse.of(post, summary, imageResponses, tagResponses, tierResult);
     }
 
@@ -118,7 +135,10 @@ public class PostResponseAssembler {
         return PostSummaryResponse.of(post,
                 batch.authors.getOrDefault(post.getUserId(), fallbackAuthor(post.getUserId())),
                 place == null ? null : PlaceSummaryResponse.from(place),
-                images);
+                images,
+                batch.likedPostIds == null ? null : batch.likedPostIds.contains(post.getPostId()),
+                batch.bookmarkedPostIds == null
+                        ? null : batch.bookmarkedPostIds.contains(post.getPostId()));
     }
 
     /**
@@ -135,7 +155,7 @@ public class PostResponseAssembler {
      * 목록에서도 사진을 전부 읽는다. 대표 한 장만 가져오면 첨부 장수(SOC-013)를 셀 수 없고,
      * 그것 때문에 카드마다 count 쿼리를 또 날리게 된다.
      */
-    private Batch load(List<PostEntity> posts) {
+    private Batch load(List<PostEntity> posts, Optional<UUID> viewerId) {
         Set<Long> postIds = new LinkedHashSet<>();
         Set<Long> placeIds = new LinkedHashSet<>();
         Set<UUID> userIds = new LinkedHashSet<>();
@@ -162,7 +182,31 @@ public class PostResponseAssembler {
         authors.findAllByIds(userIds)
                 .forEach((id, snapshot) -> authorMap.put(id, UserSummaryResponse.from(snapshot)));
 
-        return new Batch(images, placeMap, authorMap, loadTags(postIds));
+        return new Batch(images, placeMap, authorMap, loadTags(postIds),
+                loadLiked(postIds, viewerId), loadBookmarked(postIds, viewerId));
+    }
+
+    /**
+     * 요청자가 좋아요를 누른 게시글. (PST-040)
+     *
+     * <p>비회원이면 null 을 준다 — false 가 아니다. 명세의 {@code isLiked} 는 선택 필드이고,
+     * "안 눌렀다"와 "알 수 없다"는 앱에서 다르게 그려진다.
+     */
+    private Set<Long> loadLiked(Collection<Long> postIds, Optional<UUID> viewerId) {
+        if (viewerId.isEmpty()) {
+            return null;
+        }
+        return new LinkedHashSet<>(
+                likes.findLikedTargetIds(viewerId.get(), LikeTargetType.POST, postIds));
+    }
+
+    /** 요청자가 저장한 게시글. 비회원이면 null 이다. (CMU-023) */
+    private Set<Long> loadBookmarked(Collection<Long> postIds, Optional<UUID> viewerId) {
+        if (viewerId.isEmpty()) {
+            return null;
+        }
+        return new LinkedHashSet<>(bookmarks.findBookmarkedTargetIds(
+                viewerId.get(), BookmarkTargetType.POST, postIds));
     }
 
     private Map<Long, List<TagSummaryResponse>> loadTags(Collection<Long> postIds) {
@@ -212,7 +256,9 @@ public class PostResponseAssembler {
             Map<Long, List<PostImageResponse>> images,
             Map<Long, PlaceEntity> places,
             Map<UUID, UserSummaryResponse> authors,
-            Map<Long, List<TagSummaryResponse>> tags
+            Map<Long, List<TagSummaryResponse>> tags,
+            Set<Long> likedPostIds,
+            Set<Long> bookmarkedPostIds
     ) {
     }
 }

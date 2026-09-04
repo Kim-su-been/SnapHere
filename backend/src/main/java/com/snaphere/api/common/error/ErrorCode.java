@@ -43,7 +43,15 @@ public enum ErrorCode {
     PLACE_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "error.place.dailyLimit"),
     EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "error.event.notFound"),
 
-    // 게시글
+    // 댓글 (CMU-012 ~ CMU-018)
+    COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "error.comment.notFound"),
+    COMMENT_NOT_AUTHOR(HttpStatus.FORBIDDEN, "error.comment.notAuthor"),
+    COMMENT_LENGTH_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "error.comment.lengthInvalid"),
+
+    // 태그 (CMU-030, SCH-007)
+    TAG_NOT_FOUND(HttpStatus.NOT_FOUND, "error.tag.notFound"),
+
+    // 게시글 (PST-*)
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "error.post.notFound"),
     POST_NOT_VISIBLE(HttpStatus.NOT_FOUND, "error.post.notVisible"),
     POST_NOT_AUTHOR(HttpStatus.FORBIDDEN, "error.post.notAuthor"),
