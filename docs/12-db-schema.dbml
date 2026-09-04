@@ -1,5 +1,5 @@
 // SnapHere 데이터베이스 스키마 — 게시글 도메인
-// PostgreSQL 17.11 + PostGIS 3.5.2 · dbdiagram.io 붙여넣기용
+// Percona PostgreSQL 17.10.2 + PostGIS 3.5.7 · dbdiagram.io 붙여넣기용
 //
 // 범위: 게시글 등록(API-PST-003)에 필요한 8개 테이블만 담는다.
 //   소셜·이벤트·뱃지·방문·집계·알림·운영 테이블은 담당자가 별도 브랜치에서 추가한다.

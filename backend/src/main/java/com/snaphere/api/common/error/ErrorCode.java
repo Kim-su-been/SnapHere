@@ -29,15 +29,18 @@ public enum ErrorCode {
     USER_WITHDRAWN(HttpStatus.CONFLICT, "error.user.withdrawn"),
     ADMIN_REQUIRED(HttpStatus.FORBIDDEN, "error.auth.adminRequired"),
 
-    // 미디어 (PST-013 ~ PST-015)
+    // 미디어
     MEDIA_COUNT_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "error.media.countInvalid"),
     MEDIA_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "error.media.tooLarge"),
     MEDIA_TYPE_UNSUPPORTED(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "error.media.typeUnsupported"),
     MEDIA_NOT_FOUND(HttpStatus.UNPROCESSABLE_ENTITY, "error.media.notFound"),
 
-    // 장소 · 이벤트 (PLC-*, EVT-*)
+    // 장소·이벤트
     PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "error.place.notFound"),
     PLACE_INVALID_COORDINATE(HttpStatus.UNPROCESSABLE_ENTITY, "error.place.invalidCoordinate"),
+    PLACE_OUT_OF_SERVICE_AREA(HttpStatus.UNPROCESSABLE_ENTITY, "error.place.outOfServiceArea"),
+    PLACE_RADIUS_TOO_LARGE(HttpStatus.UNPROCESSABLE_ENTITY, "error.place.radiusTooLarge"),
+    PLACE_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "error.place.dailyLimit"),
     EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "error.event.notFound"),
 
     // 댓글 (CMU-012 ~ CMU-018)
@@ -56,16 +59,15 @@ public enum ErrorCode {
     POST_IMAGE_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "error.post.imageRequired"),
     POST_PLACE_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "error.post.placeRequired"),
     POST_TAG_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "error.post.tagRequired"),
-
-    // 게시글 업로드 제한 (PST-029 ~ PST-032)
     POST_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "error.post.dailyLimit"),
     POST_PLACE_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "error.post.placeDailyLimit"),
     POST_DUPLICATE_IMAGE(HttpStatus.CONFLICT, "error.post.duplicateImage"),
     POST_UPLOAD_SUSPENDED(HttpStatus.FORBIDDEN, "error.post.uploadSuspended"),
 
-    // 신고 (PST-043 ~ PST-045, SYS-017)
+    // 신고·운영
     REPORT_DUPLICATE(HttpStatus.CONFLICT, "error.report.duplicate"),
-    REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "error.report.notFound");
+    REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "error.report.notFound"),
+    BATCH_ALREADY_RUNNING(HttpStatus.CONFLICT, "error.batch.alreadyRunning");
 
     private final HttpStatus status;
     private final String messageKey;

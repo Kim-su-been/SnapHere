@@ -1,6 +1,6 @@
 # ERD 참조
 
-> 데이터 설계 **v1.1.4** · 29개 테이블 · PostgreSQL 17.11 + PostGIS 3.5.2
+> 데이터 설계 **v1.1.4** · 29개 테이블 · Percona PostgreSQL 17.10.2 + PostGIS 3.5.7
 >
 > 실행 가능한 스키마 원본은 [`12-db-schema.dbml`](12-db-schema.dbml), 설계 판단과 인덱스는 [`04-data-design.md`](04-data-design.md) 에 있다.
 

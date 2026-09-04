@@ -7,6 +7,16 @@ plugins {
 group = "com.snaphere"
 version = "1.1.3"
 
+val requiredJdkVersion = "21.0.11"
+val currentJdkVersion = System.getProperty("java.version").substringBefore('+').substringBefore('-')
+
+if (currentJdkVersion != requiredJdkVersion) {
+    throw GradleException(
+        "SnapHere backend requires JDK $requiredJdkVersion, but Gradle is running on JDK $currentJdkVersion. " +
+            "Set JAVA_HOME to a JDK $requiredJdkVersion installation."
+    )
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
@@ -23,13 +33,12 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
+    implementation("org.springframework.boot:spring-boot-starter-jdbc")
+    implementation("org.springframework.boot:spring-boot-starter-data-redis")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("org.postgresql:postgresql")
-
-    // S3 Presigned URL 발급 (PST-013, SYS-020)
-    implementation(platform("software.amazon.awssdk:bom:2.32.9"))
-    implementation("software.amazon.awssdk:s3")
 
     // S3 Presigned URL 발급 (PST-013, SYS-020)
     implementation(platform("software.amazon.awssdk:bom:2.32.9"))
@@ -41,10 +50,18 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
+    testImplementation("org.testcontainers:junit-jupiter")
+    testImplementation("org.testcontainers:postgresql")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testRuntimeOnly("com.h2database:h2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+tasks.withType<JavaCompile> {
+    options.encoding = "UTF-8"
+    options.compilerArgs.add("-parameters")
 }

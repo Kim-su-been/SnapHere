@@ -1,6 +1,6 @@
 # 데이터 설계
 
-- 기준 엔진: **PostgreSQL 17.11 + PostGIS 3.5.2** ([db-engine-decision.md](db-engine-decision.md))
+- 기준 엔진: **Percona PostgreSQL 17.10.2 + PostGIS 3.5.7** ([11-db-engine-decision.md](11-db-engine-decision.md))
 - 테이블 29개 · 관계 43개 · enum 22개
 - 컬럼 단위 정의는 [db-schema.dbml](db-schema.dbml)이 원본이다. [dbdiagram.io](https://dbdiagram.io)에
   붙여넣으면 ERD가 그려진다.

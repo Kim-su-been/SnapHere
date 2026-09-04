@@ -21,6 +21,11 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
 
 server:
   port: 8080
@@ -29,20 +34,19 @@ server:
 
 snaphere:
   # true 로 두면 places·regions 를 읽지 않고 고정 데이터로 등급 판정을 돌린다.
-  # PostgreSQL 을 띄우지 않고 앱과 흐름만 맞춰 볼 때만 쓴다 (StubPlaceData).
-  # V2~V4 마이그레이션이 들어왔으므로 기본값은 false — 실제 테이블을 읽는다.
   stub-data: ${SNAPHERE_STUB_DATA:false}
   api:
     base-path: /api/v1             # SYS-013
   jobs:
-    # 주기 배치 실행 여부. 분산 락이 없어 여러 인스턴스를 띄울 때는 한 대만 true 로 둔다 —
-    # 두 대가 동시에 돌면 같은 기간의 집계를 서로 지우고 넣는다 (JOB-013)
+    # 분산 락이 없어 여러 인스턴스에서는 배치 실행 인스턴스를 하나로 제한한다.
     enabled: ${SNAPHERE_JOBS_ENABLED:true}
+    place-sync-cron: ${PLACE_SYNC_CRON:0 0 4 * * *}
+    view-flush-cron: ${VIEW_FLUSH_CRON:0 * * * * *}
   paging:
     default-size: 20               # SYS-003
     max-size: 50
   cors:
-    allowed-origins: ""            # SYS-014 — 환경별 allowlist, 와일드카드 금지
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
   auth:
     google-client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
     jwt-secret: ${SNAPHERE_JWT_SECRET:}
@@ -53,14 +57,26 @@ snaphere:
     default-title: SnapHere              # OG 태그는 완성 문장이어야 한다 — SYS-010 의 예외 (CMU-020)
     default-description: SnapHere에서 사진을 확인하세요
   media:
-    # provider=stub 이면 실제 업로드 없이 형태만 같은 주소를 준다 (로컬 개발용)
     provider: ${MEDIA_PROVIDER:stub}
     bucket: ${MEDIA_S3_BUCKET:}
     region: ${MEDIA_S3_REGION:ap-northeast-2}
     public-base-url: ${MEDIA_PUBLIC_BASE_URL:}
-    presign-ttl: 5m                # SYS-020 — 서명 주소 유효 시간
-    max-file-size-bytes: 10485760  # PST-015 — 장당 10MB
-    # AWS 자격증명은 여기 적지 않는다. SDK 기본 체인(환경변수·프로파일·인스턴스 역할)을 쓴다
+    presign-ttl: 5m                # SYS-020
+    max-file-size-bytes: 10485760  # PST-015
+  tour-api:
+    base-url: ${TOUR_API_BASE_URL:https://apis.data.go.kr/B551011}
+    service-key: ${TOUR_API_SERVICE_KEY:}
+    mobile-app: ${TOUR_API_MOBILE_APP:SnapHere}
+    mobile-os: ${TOUR_API_MOBILE_OS:ETC}
+  google:
+    geocoding-base-url: ${GOOGLE_GEOCODING_BASE_URL:https://maps.googleapis.com/maps/api/geocode/json}
+    maps-api-key: ${GOOGLE_MAPS_API_KEY:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
 
 logging:
   level:
