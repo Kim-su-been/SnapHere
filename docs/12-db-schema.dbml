@@ -1,0 +1,183 @@
+// SnapHere 데이터베이스 스키마 — 게시글 도메인
+// PostgreSQL 16 + PostGIS 3 · dbdiagram.io 붙여넣기용
+//
+// 범위: 게시글 등록(API-PST-003)에 필요한 8개 테이블만 담는다.
+//   소셜·이벤트·뱃지·방문·집계·알림·운영 테이블은 담당자가 별도 브랜치에서 추가한다.
+//   전체 29개 테이블 설계는 docs/04-data-design.md · docs/05-erd-reference.md 참조.
+//
+// users 는 팀원의 V1__auth_schema.sql 로 이미 존재한다. id 타입이 uuid 이므로
+//   posts.user_id · places.created_by 도 uuid 로 맞춘다 (설계 문서의 bigint 는 v1.1.4에서 정정).
+
+Project SnapHere {
+  database_type: 'PostgreSQL'
+  note: '관광데이터랩 공모전 · 게시글 도메인 (요구사항 PST-001~PST-049)'
+}
+
+// ─────────────────────────────────────────────── 기준정보
+
+Table regions {
+  area_code                     integer      [pk, note: '시도 코드. 비연속(1~8, 31~39)']
+  name_ko                       varchar(50)  [not null]
+  name_en                       varchar(100)
+  representative_image_url      varchar(2048) [note: '지역 선택 화면 대표 이미지 (MAP-006)']
+  default_event_verify_radius_m integer      [note: '행사 인증 반경 지역 기본값. null 이면 2,000m (PLC-022)']
+  created_at                    timestamptz  [not null]
+  updated_at                    timestamptz  [not null]
+
+  note: '17개 시도 마스터 (PLC-001). area_code 를 단독 PK 로 둬야 다른 테이블의 area_code FK 가 성립한다.'
+}
+
+Table sigungu {
+  area_code    integer     [not null, ref: > regions.area_code]
+  sigungu_code integer     [not null]
+  name_ko      varchar(50) [not null]
+  name_en      varchar(100)
+
+  indexes {
+    (area_code, sigungu_code) [pk]
+  }
+  note: 'areaCode 오퍼레이션으로 적재하는 시군구 마스터 (PLC-002, PLC-020).'
+}
+
+// ─────────────────────────────────────────────── 장소
+
+Table places {
+  place_id        bigint       [pk, increment]
+  place_type      place_type   [not null, note: 'OFFICIAL 관광지 · USER 사용자 등록 장소']
+  content_id      bigint       [note: 'TourAPI contentId. 사용자 장소는 null']
+  content_type_id integer      [note: 'TourAPI contentTypeId']
+  title           varchar(200) [not null]
+  addr1           varchar(500)
+  lat             double       [note: 'TourAPI mapy']
+  lng             double       [note: 'TourAPI mapx']
+  has_coordinate  boolean      [note: '생성 열 — lat·lng 가 모두 있으면 true (PLC-007)']
+  geom            geography    [note: '생성 열 — lat·lng 에서 만든 Point(4326). 거리 조건은 미터 단위']
+  verify_radius_m integer      [not null, note: '관광지 500m · 사용자 장소 100m 기본 (PST-027, PLC-022)']
+  area_code       integer      [not null, ref: > regions.area_code]
+  sigungu_code    integer
+  status          place_status [not null, default: 'ACTIVE', note: '숨김 처리 근거 (PLC-023)']
+  post_count      integer      [not null, default: 0]
+  visit_count     integer      [not null, default: 0]
+  view_count      integer      [not null, default: 0, note: 'Redis 집계 후 주기 반영']
+  created_by      uuid         [note: '사용자 등록 장소의 작성자']
+  created_at      timestamptz  [not null]
+  updated_at      timestamptz  [not null]
+
+  indexes {
+    geom                     [type: gist, name: 'gix_places_geom']
+    title                    [type: gin,  name: 'gin_places_title']
+    (area_code, place_type)  [name: 'idx_places_area_type']
+    (content_id, content_type_id) [unique, name: 'uk_places_content']
+  }
+  note: '''관광지와 사용자 장소를 한 테이블에 둔다 (PLC-003).
+지도·주변탐색이 둘을 함께 그리므로 나누면 모든 조회가 UNION 이 된다.
+좌표는 lat·lng 를 원본으로 두고 geom 과 has_coordinate 를 생성 열로 파생시킨다 —
+두 값이 어긋나는 사고를 막는다.'''
+}
+
+// ─────────────────────────────────────────────── 게시글
+
+Table posts {
+  post_id                bigint        [pk, increment]
+  user_id                uuid          [not null, ref: > users.id]
+  place_id               bigint        [not null, ref: > places.place_id, note: '장소 없이는 게시 불가 (PST-002)']
+  event_id               bigint        [note: '진행 중 행사 연결. events 테이블이 생기면 FK 를 건다 (EVT-018)']
+  area_code              integer       [not null, ref: > regions.area_code, note: '클라이언트 값을 믿지 않고 장소에서 역산 (PST-018)']
+  content                varchar(5000) [note: '캡션. 비어도 게시된다 (PST-003)']
+  original_language_code varchar(10)   [note: '번역 원문 언어 (SYS-018)']
+  tier                   trust_tier    [not null, note: '서버 판정. 클라이언트가 보낸 값은 무시 (PST-022)']
+  lat                    double        [note: '촬영 좌표. 공개 이미지에서는 EXIF 를 지우지만 판정 근거로 여기 남긴다 (PST-020)']
+  lng                    double
+  taken_at               timestamptz   [note: '촬영 시각. 없으면 등급 낮음 (PST-026)']
+  source                 photo_source  [note: 'CAMERA · ALBUM. 판정 입력값이라 null 을 허용한다']
+  like_count             integer       [not null, default: 0]
+  comment_count          integer       [not null, default: 0]
+  view_count             integer       [not null, default: 0]
+  status                 post_status   [not null, default: 'ACTIVE']
+  created_at             timestamptz   [not null]
+  updated_at             timestamptz   [not null]
+  deleted_at             timestamptz   [note: '논리 삭제 (PST-043)']
+
+  indexes {
+    (area_code, created_at) [name: 'idx_posts_area_created', note: 'status = ACTIVE 부분 인덱스']
+    (place_id, created_at)  [name: 'idx_posts_place']
+    (user_id, created_at)   [name: 'idx_posts_user']
+  }
+  note: '''카운터는 전부 비정규화한다. 목록 응답마다 COUNT 를 돌리면 메이슨리 무한 스크롤이 버틴다.
+논리 삭제라 모든 조회에 status = ACTIVE 조건이 붙는다 — 부분 인덱스로 받는다.'''
+}
+
+Table post_images {
+  post_image_id bigint        [pk, increment]
+  post_id       bigint        [not null, ref: > posts.post_id]
+  image_key     varchar(1024) [not null, note: 'S3 오브젝트 키. 공개 URL 은 이 키로 조립한다']
+  thumbnail_url varchar(2048) [note: '후처리 배치가 채운다 (PST-019, JOB-003)']
+  aspect_ratio  decimal(6,4)  [note: '메이슨리 카드 높이 계산용. 이미지를 받기 전에 필요하다 (PST-021)']
+  sort_order    smallint      [not null, note: '1~4']
+  image_hash    varchar(64)   [note: '본인 계정 안 중복 업로드 차단 (PST-031)']
+  created_at    timestamptz   [not null]
+
+  indexes {
+    (post_id, sort_order) [unique, name: 'uk_post_images_order']
+    (post_id, image_hash) [unique, name: 'uk_post_images_hash']
+  }
+  note: '게시글당 1~4장 (PST-001). 게시글이 물리 삭제되면 함께 지운다.'
+}
+
+Table tier_logs {
+  tier_log_id            bigint      [pk, increment]
+  post_id                bigint      [not null, ref: > posts.post_id]
+  tier                   trust_tier  [not null]
+  source                 photo_source
+  taken_at               timestamptz
+  has_taken_coordinate   boolean     [not null]
+  distance_m             integer     [note: '촬영 좌표가 없으면 null']
+  applied_radius_m       integer     [not null]
+  threshold_high_minutes integer     [not null, note: '판정 당시 기준값. 기본 10분']
+  threshold_medium_days  integer     [not null, note: '판정 당시 기준값. 기본 30일']
+  decided_reason         varchar(50) [not null, note: 'TierReason enum 이름']
+  decided_at             timestamptz [not null]
+
+  indexes {
+    (post_id, decided_at) [name: 'idx_tier_logs_post']
+  }
+  note: '''판정 근거 감사 로그 (PST-028). posts 에 합치지 않는다 —
+기준(반경·10분·30일)이 바뀌어도 과거 판정을 재현할 수 있어야 하므로 입력값을 스냅샷으로 남긴다.
+현재 등급은 posts.tier, 판정 이유는 이 테이블의 최신 1행.
+업로드 전 미리보기(API-PST-002)는 post_id 가 없으므로 여기 적재하지 않고 애플리케이션 로그로만 남긴다.'''
+}
+
+// ─────────────────────────────────────────────── 해시태그
+
+Table tags {
+  tag_id          bigint      [pk, increment]
+  name            varchar(50) [not null, note: '표시용 원문']
+  normalized_name varchar(50) [not null, unique, note: '소문자 변환 + 공백 제거 (CMU-025)']
+  theme_code      varchar(30) [note: 'K-컬처 테마 랭킹 키 (RNK-005)']
+  usage_count     bigint      [not null, default: 0]
+  created_at      timestamptz [not null]
+}
+
+Table post_tags {
+  post_id      bigint      [not null, ref: > posts.post_id]
+  tag_id       bigint      [not null, ref: > tags.tag_id]
+  is_locked    boolean     [not null, default: false, note: '행사 고정 태그 — 사용자가 뗄 수 없다 (EVT-018)']
+  is_suggested boolean     [not null, default: false, note: '추천을 채택한 태그. 추천 로직 개선 지표 (CMU-029)']
+  created_at   timestamptz [not null]
+
+  indexes {
+    (post_id, tag_id) [pk]
+    tag_id            [name: 'idx_post_tags_tag', note: '태그로 게시글 검색 (CMU-030)']
+  }
+  note: '게시글 수정 시 이 연결을 전부 지우고 다시 넣는다. 차이 계산은 버그를 부른다 (CMU-032).'
+}
+
+// ─────────────────────────────────────────────── enum
+// 실제 DDL 은 varchar + CHECK 제약으로 만든다. PostgreSQL 네이티브 enum 은
+// 값 추가 시 마이그레이션이 까다롭고 JPA @Enumerated(STRING) 와 궁합이 나쁘다.
+
+Enum place_type   { OFFICIAL USER }
+Enum place_status { ACTIVE HIDDEN DELETED }
+Enum post_status  { ACTIVE HIDDEN DELETED }
+Enum trust_tier   { HIGH MEDIUM LOW }
+Enum photo_source { CAMERA ALBUM }

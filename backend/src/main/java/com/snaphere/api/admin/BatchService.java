@@ -5,11 +5,12 @@ import com.snaphere.api.common.error.ApiException;
 import com.snaphere.api.common.error.ErrorCode;
 import com.snaphere.api.common.web.CursorCodec;
 import com.snaphere.api.common.web.CursorPage;
+import com.snaphere.api.config.PlaceTaskConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.core.task.TaskExecutor;
@@ -28,7 +29,8 @@ public class BatchService {
     private final PlaceSyncWorker worker;
     private final TaskExecutor taskExecutor;
 
-    public BatchService(JdbcClient jdbc, PlaceSyncWorker worker, TaskExecutor taskExecutor) {
+    public BatchService(JdbcClient jdbc, PlaceSyncWorker worker,
+                        @Qualifier(PlaceTaskConfig.PLACE_TASK_EXECUTOR) TaskExecutor taskExecutor) {
         this.jdbc = jdbc; this.worker = worker; this.taskExecutor = taskExecutor;
     }
 

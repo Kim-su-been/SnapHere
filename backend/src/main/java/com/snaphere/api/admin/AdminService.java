@@ -3,9 +3,11 @@ package com.snaphere.api.admin;
 import com.snaphere.api.auth.ExternalIds;
 import com.snaphere.api.common.error.ApiException;
 import com.snaphere.api.common.error.ErrorCode;
+import com.snaphere.api.config.PlaceTaskConfig;
 import com.snaphere.api.place.PlaceDtos;
 import com.snaphere.api.place.PlaceRepository;
 import com.snaphere.api.place.PlaceService;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -26,7 +28,8 @@ public class AdminService {
     private final TaskExecutor executor;
     private final TransactionTemplate transactions;
 
-    public AdminService(JdbcClient jdbc, PlaceRepository places, PlaceService placeService, TaskExecutor executor,
+    public AdminService(JdbcClient jdbc, PlaceRepository places, PlaceService placeService,
+                        @Qualifier(PlaceTaskConfig.PLACE_TASK_EXECUTOR) TaskExecutor executor,
                         PlatformTransactionManager transactionManager) {
         this.jdbc = jdbc;
         this.places = places;

@@ -78,15 +78,16 @@ main
 | 08 | [08-spec-changelog.md](08-spec-changelog.md) | 명세 변경 이력 — 버전별 변경 내역과 작성 규칙 |
 | 09 | [09-git-strategy.md](09-git-strategy.md) | Git 브랜치 전략, 커밋·PR 규칙 |
 | 11 | [11-db-engine-decision.md](11-db-engine-decision.md) | DB 엔진 결정 (PostgreSQL 16 + PostGIS 3) |
+| 12 | [12-db-schema.dbml](12-db-schema.dbml) | DB 스키마 — dbdiagram.io ERD 소스. 현재 게시글 도메인 8개 테이블 |
 | 13 | [13-flutter-bootstrap-plan.md](13-flutter-bootstrap-plan.md) | Flutter 앱 초기 구성 계획 |
 | — | [specs/](specs) | 스프레드시트 원본 (.xlsx) |
 
-**번호 10·12는 비워 두었다.** 다른 브랜치에 있는 문서가 머지되면 그 자리에 들어간다.
+**번호 10은 비워 두었다.** 이미 머지된 `commit-convention.md` 를 `10-commit-convention.md` 로 옮길 자리다.
+커밋 규칙을 참조하는 문서·PR 링크가 여러 곳에 있어 파일명 변경은 따로 처리한다.
 
-| # | 문서 | 어디에 있나 |
-| --- | --- | --- |
-| 10 | `10-commit-convention.md` | `feature/backend-post` — 커밋 메시지 양식, 요구사항 ID 연결 규칙 |
-| 12 | `12-db-schema.dbml` | `docs/backend-db-design` — dbdiagram.io ERD 소스 |
+`12-db-schema.dbml` 은 dbdiagram.io 에 그대로 붙여넣어 ERD 를 그릴 수 있다.
+현재는 게시글 도메인 8개 테이블만 담겨 있고, 소셜·이벤트·뱃지·방문·집계·알림·운영 테이블은
+각 담당 브랜치에서 같은 파일에 추가한다. 전체 29개 테이블 설계는 04·05번 문서가 정본이다.
 
 ## 에이전트 협업 의사결정
 

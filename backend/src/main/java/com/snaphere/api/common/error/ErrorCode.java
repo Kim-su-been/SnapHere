@@ -25,14 +25,36 @@ public enum ErrorCode {
     AUTH_REFRESH_EXPIRED(HttpStatus.UNAUTHORIZED, "error.auth.refreshExpired"),
     AUTH_TOKEN_REUSED(HttpStatus.UNAUTHORIZED, "error.auth.tokenReused"),
     AUTH_TERMS_REQUIRED(HttpStatus.FORBIDDEN, "error.auth.termsRequired"),
+    USER_NICKNAME_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "error.user.nicknameInvalid"),
+    USER_WITHDRAWN(HttpStatus.CONFLICT, "error.user.withdrawn"),
     ADMIN_REQUIRED(HttpStatus.FORBIDDEN, "error.auth.adminRequired"),
 
-    // 장소
+    // 미디어
+    MEDIA_COUNT_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "error.media.countInvalid"),
+    MEDIA_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "error.media.tooLarge"),
+    MEDIA_TYPE_UNSUPPORTED(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "error.media.typeUnsupported"),
+    MEDIA_NOT_FOUND(HttpStatus.UNPROCESSABLE_ENTITY, "error.media.notFound"),
+
+    // 장소·이벤트
     PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "error.place.notFound"),
     PLACE_INVALID_COORDINATE(HttpStatus.UNPROCESSABLE_ENTITY, "error.place.invalidCoordinate"),
     PLACE_OUT_OF_SERVICE_AREA(HttpStatus.UNPROCESSABLE_ENTITY, "error.place.outOfServiceArea"),
     PLACE_RADIUS_TOO_LARGE(HttpStatus.UNPROCESSABLE_ENTITY, "error.place.radiusTooLarge"),
     PLACE_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "error.place.dailyLimit"),
+    EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "error.event.notFound"),
+
+    // 게시글
+    POST_NOT_FOUND(HttpStatus.NOT_FOUND, "error.post.notFound"),
+    POST_NOT_VISIBLE(HttpStatus.NOT_FOUND, "error.post.notVisible"),
+    POST_NOT_AUTHOR(HttpStatus.FORBIDDEN, "error.post.notAuthor"),
+    POST_INVALID_TAKEN_AT(HttpStatus.UNPROCESSABLE_ENTITY, "error.post.invalidTakenAt"),
+    POST_IMAGE_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "error.post.imageRequired"),
+    POST_PLACE_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "error.post.placeRequired"),
+    POST_TAG_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "error.post.tagRequired"),
+    POST_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "error.post.dailyLimit"),
+    POST_PLACE_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "error.post.placeDailyLimit"),
+    POST_DUPLICATE_IMAGE(HttpStatus.CONFLICT, "error.post.duplicateImage"),
+    POST_UPLOAD_SUSPENDED(HttpStatus.FORBIDDEN, "error.post.uploadSuspended"),
 
     // 신고·운영
     REPORT_DUPLICATE(HttpStatus.CONFLICT, "error.report.duplicate"),

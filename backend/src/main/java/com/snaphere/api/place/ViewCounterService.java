@@ -2,6 +2,7 @@ package com.snaphere.api.place;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.snaphere.api.config.PlaceTaskConfig;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -21,7 +22,7 @@ public class ViewCounterService {
         this.places = places;
     }
 
-    @Async
+    @Async(PlaceTaskConfig.PLACE_TASK_EXECUTOR)
     public void increment(long placeId) {
         try {
             redis.opsForValue().increment(PREFIX + placeId);

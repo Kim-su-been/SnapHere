@@ -1,9 +1,9 @@
 package com.snaphere.api.place;
 
-import com.snaphere.api.auth.CurrentActor;
 import com.snaphere.api.auth.ExternalIds;
 import com.snaphere.api.common.error.ApiException;
 import com.snaphere.api.common.error.ErrorCode;
+import com.snaphere.api.common.security.CurrentUser;
 import com.snaphere.api.common.web.CursorCodec;
 import com.snaphere.api.common.web.CursorPage;
 import org.springframework.stereotype.Service;
@@ -36,7 +36,7 @@ public class PlaceService {
 
     public CursorPage<PlaceDtos.PlaceSummary> list(Integer areaCode, Integer sigunguCode,
                                                     Integer contentTypeId, String keyword,
-                                                    String cursor, int size, CurrentActor actor) {
+                                                    String cursor, int size, CurrentUser actor) {
         if (sigunguCode != null && areaCode == null) throw new ApiException(ErrorCode.COMMON_400);
         if (keyword != null && keyword.length() > 100) throw new ApiException(ErrorCode.COMMON_400);
         int pageSize = validSize(size);
@@ -46,7 +46,7 @@ public class PlaceService {
         return page(rows, pageSize, p -> ExternalIds.parse(p.placeId(), "plc", ErrorCode.COMMON_400));
     }
 
-    public PlaceDtos.NearbyPlaceResult nearby(double lat, double lng, int radiusM, CurrentActor actor) {
+    public PlaceDtos.NearbyPlaceResult nearby(double lat, double lng, int radiusM, CurrentUser actor) {
         validCoordinate(lat, lng);
         if (radiusM < 1 || radiusM > 20_000) throw new ApiException(ErrorCode.PLACE_RADIUS_TOO_LARGE);
         List<PlaceDtos.PlaceSummary> candidates = places.nearby(lat, lng, radiusM, 50,
@@ -55,7 +55,7 @@ public class PlaceService {
         return new PlaceDtos.NearbyPlaceResult(exact, candidates, exact == null, radiusM);
     }
 
-    public PlaceDtos.PlaceDetail detail(String externalId, String acceptLanguage, CurrentActor actor) {
+    public PlaceDtos.PlaceDetail detail(String externalId, String acceptLanguage, CurrentUser actor) {
         long id = ExternalIds.parse(externalId, "plc", ErrorCode.PLACE_NOT_FOUND);
         PlaceRepository.PlaceRecord place = places.placeRecord(id);
         String language = language(acceptLanguage);
@@ -66,7 +66,7 @@ public class PlaceService {
             detail = places.detail(id, "ko");
             language = "ko";
         }
-        Long viewer = actor == null ? null : actor.userId();
+        java.util.UUID viewer = actor == null ? null : actor.userId();
         PlaceDtos.PlaceSummary summary = places.summary(id, viewer);
         List<PlaceDtos.PlaceSummary> nearby = summary.lat() == null ? List.of() : places.nearby(
                 summary.lat(), summary.lng(), 5000, 7, viewer).stream().filter(p -> !p.placeId().equals(externalId)).limit(6).toList();
@@ -77,7 +77,7 @@ public class PlaceService {
                 detail.verifyRadiusM(), totalViews, places.ranking(id), nearby, recent);
     }
 
-    public CursorPage<PlaceDtos.PostSummary> posts(String externalId, String cursor, int size, CurrentActor actor) {
+    public CursorPage<PlaceDtos.PostSummary> posts(String externalId, String cursor, int size, CurrentUser actor) {
         long id = ExternalIds.parse(externalId, "plc", ErrorCode.PLACE_NOT_FOUND);
         places.placeRecord(id);
         int pageSize = validSize(size);
@@ -87,7 +87,7 @@ public class PlaceService {
     }
 
     @Transactional
-    public PlaceDtos.CreatePlaceResult create(CurrentActor actor, PlaceDtos.CreatePlaceRequest body) {
+    public PlaceDtos.CreatePlaceResult create(CurrentUser actor, PlaceDtos.CreatePlaceRequest body) {
         validCoordinate(body.lat(), body.lng());
         var administrative = geocoder.reverse(body.lat(), body.lng());
         var area = places.resolveArea(administrative.regionName(), administrative.districtName());
@@ -108,18 +108,18 @@ public class PlaceService {
         return new PlaceDtos.CreatePlaceResult(places.summary(id, actor.userId()), true, null);
     }
 
-    public PlaceDtos.BookmarkResult bookmark(CurrentActor actor, String externalId) {
+    public PlaceDtos.BookmarkResult bookmark(CurrentUser actor, String externalId) {
         long id = ExternalIds.parse(externalId, "plc", ErrorCode.PLACE_NOT_FOUND);
         return new PlaceDtos.BookmarkResult("PLACE", externalId, true, places.bookmark(actor.userId(), id));
     }
 
-    public PlaceDtos.BookmarkResult unbookmark(CurrentActor actor, String externalId) {
+    public PlaceDtos.BookmarkResult unbookmark(CurrentUser actor, String externalId) {
         long id = ExternalIds.parse(externalId, "plc", ErrorCode.PLACE_NOT_FOUND);
         places.unbookmark(actor.userId(), id);
         return new PlaceDtos.BookmarkResult("PLACE", externalId, false, null);
     }
 
-    public CursorPage<PlaceDtos.PlaceSummary> bookmarks(CurrentActor actor, String cursor, int size) {
+    public CursorPage<PlaceDtos.PlaceSummary> bookmarks(CurrentUser actor, String cursor, int size) {
         int pageSize = validSize(size);
         List<PlaceDtos.PlaceSummary> rows = places.bookmarkedPlaces(actor.userId(), CursorCodec.decode(cursor), pageSize + 1);
         return page(rows, pageSize, p -> ExternalIds.parse(p.placeId(), "plc", ErrorCode.COMMON_400));
@@ -131,7 +131,7 @@ public class PlaceService {
     }
 
     @Transactional
-    public PlaceDtos.ReportReceipt report(CurrentActor actor, String placeId, PlaceDtos.CreateReportRequest body) {
+    public PlaceDtos.ReportReceipt report(CurrentUser actor, String placeId, PlaceDtos.CreateReportRequest body) {
         long id = ExternalIds.parse(placeId, "plc", ErrorCode.PLACE_NOT_FOUND);
         return places.reportPlace(actor.userId(), id, body);
     }

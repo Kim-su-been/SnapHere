@@ -48,24 +48,23 @@ public class PlaceSyncWorker {
     private void upsert(TourApiClient.OfficialPlace item) {
         String sql = """
                 INSERT INTO places(place_type,content_id,content_type_id,title,normalized_title,addr1,image_url,
-                  geom,verify_radius_m,area_code,sigungu_code,has_coordinate,source_modified_at,status)
+                  lat,lng,verify_radius_m,area_code,sigungu_code,source_modified_at,status)
                 VALUES ('OFFICIAL',:content,:type,:title,:normalized,:addr,:image,
-                  CASE WHEN :lat IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint(:lng,:lat),4326)::geography END,
-                  500,:area,:sigungu,:hasCoordinate,:modified,:status)
-                ON CONFLICT(content_id,content_type_id) WHERE content_id IS NOT NULL DO UPDATE SET
+                  :lat,:lng,500,:area,:sigungu,:modified,:status)
+                ON CONFLICT(content_id,content_type_id) DO UPDATE SET
                   title=excluded.title,normalized_title=excluded.normalized_title,addr1=excluded.addr1,
-                  image_url=excluded.image_url,geom=excluded.geom,area_code=excluded.area_code,
-                  sigungu_code=excluded.sigungu_code,has_coordinate=excluded.has_coordinate,
+                  image_url=excluded.image_url,lat=excluded.lat,lng=excluded.lng,area_code=excluded.area_code,
+                  sigungu_code=excluded.sigungu_code,
                   source_modified_at=excluded.source_modified_at,status=excluded.status,updated_at=now()
                 WHERE places.source_modified_at IS NULL OR excluded.source_modified_at IS NULL
                    OR excluded.source_modified_at > places.source_modified_at
                 """;
-        JdbcClient.StatementSpec spec = jdbc.sql(sql).param("content", item.contentId()).param("type", item.contentTypeId())
+        JdbcClient.StatementSpec spec = jdbc.sql(sql).param("content", Long.parseLong(item.contentId())).param("type", item.contentTypeId())
                 .param("title", item.title()).param("normalized", PlaceRepository.normalizeTitle(item.title()))
                 .param("addr", item.addr1()).param("image", item.imageUrl())
                 .param("lat", item.lat(), Types.DOUBLE).param("lng", item.lng(), Types.DOUBLE)
                 .param("area", item.areaCode()).param("sigungu", item.sigunguCode(), Types.INTEGER)
-                .param("hasCoordinate", item.lat() != null).param("modified", item.modifiedAt(), Types.TIMESTAMP_WITH_TIMEZONE)
+                .param("modified", item.modifiedAt(), Types.TIMESTAMP_WITH_TIMEZONE)
                 .param("status", item.deleted() ? "DELETED" : "ACTIVE");
         spec.update();
     }

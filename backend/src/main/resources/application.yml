@@ -1,12 +1,24 @@
 # SnapHere API — 공통 설정
-# 명세: docs/specs/snaphere-api-spec-v1.1.3.xlsx > 4. 공통 규약
+# 명세: docs/03-api-spec.md > 2. 공통 규약
 spring:
+  config:
+    # 개발 시 저장소 루트의 .env를 Spring properties로 읽는다. 운영 환경 변수는 이를 덮어쓴다.
+    import: optional:file:../.env[.properties]
   application:
     name: snaphere-api
+  jackson:
+    default-property-inclusion: always
+    time-zone: Asia/Seoul          # SYS-005
+    serialization:
+      write-dates-as-timestamps: false
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/snaphere}
-    username: ${DATABASE_USERNAME:snaphere}
-    password: ${DATABASE_PASSWORD:snaphere}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/snaphere}
+    username: ${DB_USERNAME:snaphere}
+    password: ${DB_PASSWORD:snaphere}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
   flyway:
     enabled: true
   data:
@@ -14,11 +26,6 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
-  jackson:
-    default-property-inclusion: always
-    time-zone: Asia/Seoul          # SYS-005
-    serialization:
-      write-dates-as-timestamps: false
 
 server:
   port: 8080
@@ -26,20 +33,31 @@ server:
     context-path: /                # Base URL 접두어는 컨트롤러의 /api/v1 로 표기 (SYS-013)
 
 snaphere:
+  # true 로 두면 places·regions 를 읽지 않고 고정 데이터로 등급 판정을 돌린다.
+  stub-data: ${SNAPHERE_STUB_DATA:false}
   api:
     base-path: /api/v1             # SYS-013
+  jobs:
+    # 분산 락이 없어 여러 인스턴스에서는 배치 실행 인스턴스를 하나로 제한한다.
+    enabled: ${SNAPHERE_JOBS_ENABLED:true}
+    place-sync-cron: ${PLACE_SYNC_CRON:0 0 4 * * *}
+    view-flush-cron: ${VIEW_FLUSH_CRON:0 * * * * *}
   paging:
     default-size: 20               # SYS-003
     max-size: 50
   cors:
-    allowed-origins: ""            # SYS-014 — 환경별 allowlist, 와일드카드 금지
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
   auth:
     google-client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
-    jwt-issuer: ${JWT_ISSUER:snaphere-api}
-    jwt-private-key: ${JWT_PRIVATE_KEY:}
-    jwt-public-key: ${JWT_PUBLIC_KEY:}
-    admin-google-subjects: ${ADMIN_GOOGLE_SUBJECTS:}
-    terms-version: ${TERMS_VERSION:2026-08-01}
+    jwt-secret: ${SNAPHERE_JWT_SECRET:}
+    terms-version: ${SNAPHERE_TERMS_VERSION:2026-08-01}
+  media:
+    provider: ${MEDIA_PROVIDER:stub}
+    bucket: ${MEDIA_S3_BUCKET:}
+    region: ${MEDIA_S3_REGION:ap-northeast-2}
+    public-base-url: ${MEDIA_PUBLIC_BASE_URL:}
+    presign-ttl: 5m                # SYS-020
+    max-file-size-bytes: 10485760  # PST-015
   tour-api:
     base-url: ${TOUR_API_BASE_URL:https://apis.data.go.kr/B551011}
     service-key: ${TOUR_API_SERVICE_KEY:}
@@ -48,9 +66,6 @@ snaphere:
   google:
     geocoding-base-url: ${GOOGLE_GEOCODING_BASE_URL:https://maps.googleapis.com/maps/api/geocode/json}
     maps-api-key: ${GOOGLE_MAPS_API_KEY:}
-  jobs:
-    place-sync-cron: ${PLACE_SYNC_CRON:0 0 4 * * *}
-    view-flush-cron: ${VIEW_FLUSH_CRON:0 * * * * *}
 
 management:
   endpoints:
