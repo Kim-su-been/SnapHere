@@ -1,6 +1,6 @@
 # API 명세서
 
-> API 명세서 · ERD **v1.1.3** · REST/JSON · Base URL `/api/v1`
+> API 명세서 · ERD **v1.1.4** · REST/JSON · Base URL `/api/v1`
 >
 > 모든 엔드포인트는 요구사항 ID에 매핑돼 있다. 매핑되지 않은 엔드포인트는 없다(§7).
 
@@ -189,7 +189,7 @@
 | 언어 | Accept-Language | ko-KR\|en-US\|zh-CN\|ja-JP | 지원하지 않으면 ko-KR 폴백 | SYS-010, SYS-012 |
 | 언어 | 관광정보 다국어 | place_details는 (place_id, language_code) 단위 저장 | 요청 언어의 상세가 없으면 해당 언어로 지연 적재 후 반환, 실패 시 ko-KR 폴백 | SYS-012, PLC-006 |
 | 원문 | 사용자 작성 글 | content+originalLanguageCode+translations(null 허용) | 원문이 진실의 원천; 번역은 후속 확장 | SYS-010 |
-| 식별자 | ID | 내부 PK는 bigint(auto increment), API는 불투명 string으로 노출 | 클라이언트는 형식을 가정하지 않는다. regions는 area_code, sigungu는 (area_code, sigungu_code)가 식별자 | SYS-009, PLC-001~002 |
+| 식별자 | ID | 내부 PK는 bigint(auto increment), API는 불투명 string으로 노출. users 만 uuid (v1.1.4 정정) | 클라이언트는 형식을 가정하지 않는다. regions는 area_code, sigungu는 (area_code, sigungu_code)가 식별자 users 는 구글 OAuth 기반이라 순번을 노출하지 않고 uuid 를 쓴다. | SYS-009, PLC-001~002 |
 | 좌표 | 공간 기준 | WGS84 lat/lng | mapx=경도, mapy=위도; 서버가 지역 역산 | PLC-005, PST-018 |
 | 멱등 | PUT/DELETE | 동일 요청 반복 시 같은 200 결과 | 팔로우·좋아요·저장 | SOC-002, SOC-007 |
 | 멱등 | POST 생성 | Idempotency-Key 헤더 | 게시글·장소 생성에서 네트워크 재시도 안전성 확보 | SYS-001 |
@@ -201,7 +201,7 @@
 | 캐시 | 공개 조회 | Cache-Control/ETag 사용 가능 | 히트맵은 nextRefreshAt 우선 | MAP-013, SYS-019 |
 | CORS | 허용 출처 | 환경별 allowlist | 와일드카드 금지 | SYS-014 |
 
-## 3. 요청 파라미터 (231개)
+## 3. 요청 파라미터 (235개)
 
 ### API-AUTH-001
 
@@ -427,7 +427,11 @@
 | POST | /api/v1/posts | body | eventId | uuid\|null | N | 이벤트 참여 시 | evt_01 | 이벤트 ID |
 | POST | /api/v1/posts | body | content | string | N | 최대 5000자 | 야경이 멋져요 | 캡션 원문 |
 | POST | /api/v1/posts | body | originalLanguageCode | string | Y | BCP 47 | ko | 원문 언어 |
-| POST | /api/v1/posts | body | images | array | Y | 1~4개, 발급 imageKey | [{imageKey:'posts/...',sortOrder:1}] | 업로드 완료 이미지 |
+| POST | /api/v1/posts | body | images | array | Y | 1~4개, 발급 imageKey | [{imageKey:'posts/...',sortOrder:1}] | 업로드 완료 이미지. 원소는 imageKey · sortOrder · aspectRatio · imageHash 네 필드다 (v1.1.4에서 원소 구조 명시) |
+| POST | /api/v1/posts | body | images[].imageKey | string | Y | presigned-urls 발급 키 | posts/{userId}/{uuid}.webp | 서버가 접두어로 발급 소유자를 확인한다. 남의 키는 MEDIA_NOT_FOUND (PST-014) |
+| POST | /api/v1/posts | body | images[].sortOrder | integer | Y | 1~4, 중복 불가 | 1 | 1부터다. 게시글당 1~4장이므로 값이 곧 몇 번째 사진인지를 뜻한다 (PST-001) |
+| POST | /api/v1/posts | body | images[].aspectRatio | number\|null | N | 0 초과 | 1.3333 | 메이슨리가 이미지 도착 전에 카드 높이를 잡아야 하는데 후처리 전까지 값이 없어 클라이언트가 아는 값을 함께 받는다. 후처리(JOB-003)가 실제 값으로 덮어쓴다 (PST-021, v1.1.4 추가) |
+| POST | /api/v1/posts | body | images[].imageHash | string\|null | N | SHA-256 소문자 16진수 64자 | a1b2... | 중복 409 를 등록 응답 전에 내리기 위한 값. 서버가 이 시점에 원본을 내려받아 계산하면 PST-019 와 어긋난다. 비우면 검사를 건너뛰고 후처리가 실제 해시로 덮어쓴다 (PST-031, v1.1.4 추가) |
 | POST | /api/v1/posts | body | tagNames | array<string> | Y | 고정 포함 1~10개 | ['서울','드라마촬영지'] | 사용자·추천 태그 |
 | POST | /api/v1/posts | body | source | enum | Y | CAMERA\|ALBUM | ALBUM | 업로드 경로 |
 | POST | /api/v1/posts | body | takenAt | datetime\|null | N | ISO-8601; source=CAMERA이면 필수(PST-023) | 예: 2026-08-30T10:00:00+09:00 | 촬영 시각 |
@@ -1473,7 +1477,7 @@
 | imageUrl | url | Y | 원본·최적화 이미지 URL | https://cdn/... | post_images |
 | thumbnailUrl | url | Y | 썸네일 URL | https://cdn/thumb/... | post_images |
 | aspectRatio | number | Y | 가로/세로 비율 | 1.333 | post_images |
-| sortOrder | integer | Y | 0부터 정렬 순서 | 0 | post_images |
+| sortOrder | integer | Y | 1부터 정렬 순서 (1~4) | 0 | post_images |
 
 ### HeatmapCell
 
@@ -1955,5 +1959,5 @@
 
 ---
 
-원본 스프레드시트: [`specs/snaphere-requirements-spec-v1.1.3.xlsx`](specs/snaphere-requirements-spec-v1.1.3.xlsx) · [`specs/snaphere-api-spec-v1.1.3.xlsx`](specs/snaphere-api-spec-v1.1.3.xlsx)
+원본 스프레드시트: [`specs/snaphere-requirements-spec-v1.1.4.xlsx`](specs/snaphere-requirements-spec-v1.1.4.xlsx) · [`specs/snaphere-api-spec-v1.1.4.xlsx`](specs/snaphere-api-spec-v1.1.4.xlsx)
 변경 이력: [`08-spec-changelog.md`](08-spec-changelog.md)

@@ -1,12 +1,12 @@
 // SnapHere 데이터베이스 스키마 — 게시글 도메인
-// PostgreSQL 16 + PostGIS 3 · dbdiagram.io 붙여넣기용
+// PostgreSQL 17.11 + PostGIS 3.5.2 · dbdiagram.io 붙여넣기용
 //
 // 범위: 게시글 등록(API-PST-003)에 필요한 8개 테이블만 담는다.
 //   소셜·이벤트·뱃지·방문·집계·알림·운영 테이블은 담당자가 별도 브랜치에서 추가한다.
 //   전체 29개 테이블 설계는 docs/04-data-design.md · docs/05-erd-reference.md 참조.
 //
 // users 는 팀원의 V1__auth_schema.sql 로 이미 존재한다. id 타입이 uuid 이므로
-//   posts.user_id · places.created_by 도 uuid 로 맞춘다 (설계 문서의 bigint 는 v1.1.4에서 정정).
+//   posts.user_id · places.created_by 도 uuid 로 맞춘다 (설계 문서도 v1.1.4에서 uuid 로 정정했다).
 
 Project SnapHere {
   database_type: 'PostgreSQL'
