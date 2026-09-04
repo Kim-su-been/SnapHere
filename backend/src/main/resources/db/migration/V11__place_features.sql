@@ -1,5 +1,5 @@
--- SnapHere V7 — PLC-001~PLC-023 장소 조회·운영 확장
--- V1~V6의 공용 Auth/JPA/게시글 스키마를 유지하면서 장소 기능에 필요한 필드와 테이블만 추가한다.
+-- SnapHere V11 — PLC-001~PLC-023 장소 조회·운영 확장
+-- V1~V10의 공용 Auth/JPA/게시글·반응·신고·댓글 스키마를 유지하면서 장소 기능에 필요한 필드와 테이블만 추가한다.
 
 alter table places add column normalized_title varchar(200);
 alter table places add column image_url varchar(2048);

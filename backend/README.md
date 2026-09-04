@@ -80,7 +80,7 @@ Percona Distribution for PostgreSQL 17.10.2 + PostGIS 3.5.7이 필요하다. 스
 | `V2__place_schema.sql` | `regions` · `sigungu` · `places` + 공간·검색 인덱스 |
 | `V3__post_schema.sql` | `posts` · `post_images` · `tags` · `post_tags` · `tier_logs` |
 | `V4__region_seed.sql` | 17개 시도 기준정보. `posts.area_code` 가 참조하므로 없으면 게시글을 만들 수 없다 |
-| `V7__place_features.sql` | 장소 상세·저장·랭킹·신고·이벤트·배치 운영 확장 |
+| `V11__place_features.sql` | 장소 상세·저장·랭킹·신고·이벤트·배치 운영 확장 |
 
 `V2` 가 `postgis` · `pg_trgm` 확장을 만든다. 확장 생성에는 보통 슈퍼유저 권한이 필요하니
 관리형 DB(RDS 등)에서는 관리자 계정으로 한 번 만들어 두고 애플리케이션 계정에는 권한을 주지 않아도 된다.
