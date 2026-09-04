@@ -223,6 +223,9 @@ class DeviceUploadRepository implements UploadRepository {
         title: draft.title,
         description: draft.description,
         place: draft.place,
+        eventId: draft.eventId,
+        fixedTags: draft.fixedTags,
+        userTags: draft.userTags,
       ),
     );
   }
