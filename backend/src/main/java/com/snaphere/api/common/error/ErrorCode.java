@@ -43,6 +43,9 @@ public enum ErrorCode {
     PLACE_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "error.place.dailyLimit"),
     EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "error.event.notFound"),
 
+    // 지도
+    MAP_INVALID_BOUNDS(HttpStatus.UNPROCESSABLE_ENTITY, "error.map.invalidBounds"),
+
     // 댓글 (CMU-012 ~ CMU-018)
     COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "error.comment.notFound"),
     COMMENT_NOT_AUTHOR(HttpStatus.FORBIDDEN, "error.comment.notAuthor"),

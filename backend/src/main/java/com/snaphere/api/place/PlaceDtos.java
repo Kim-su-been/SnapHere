@@ -33,7 +33,8 @@ public final class PlaceDtos {
                               List<PostSummary> recentPosts) { }
 
     public record NearbyPlaceResult(PlaceSummary exactMatch, List<PlaceSummary> candidates,
-                                    boolean createAllowed, int searchedRadiusM) { }
+                                    boolean createAllowed, int searchedRadiusM,
+                                    Integer nearestDistanceM) { }
 
     public record CreatePlaceRequest(
             @NotBlank @Size(max = 100) String title,

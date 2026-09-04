@@ -97,10 +97,15 @@ public class AdminService {
             if (status != null) jdbc.sql("UPDATE posts SET status=:status,updated_at=now() WHERE post_id=:id")
                     .param("status",status).param("id",report.targetId()).update();
         }
-        String reportStatus = "REJECT".equals(action) ? "REJECTED" : "RESOLVED";
+        String reportStatus = "REVIEWED";
+        String storedAction = switch (action) {
+            case "HIDE" -> "HIDE";
+            case "DELETE" -> "DELETE";
+            default -> "KEEP";
+        };
         jdbc.sql("""
-                UPDATE reports SET status=:status,action=:action,memo=:memo,reviewed_at=now() WHERE report_id=:id
-                """).param("status",reportStatus).param("action",action).param("memo",body.memo()).param("id",id).update();
+                UPDATE reports SET status=:status,action=:action,reviewed_at=now() WHERE report_id=:id
+                """).param("status",reportStatus).param("action",storedAction).param("id",id).update();
         return new BatchDtos.ReportResult(reportId,report.targetType(),externalTarget(report),reportStatus,action,OffsetDateTime.now());
     }
 
@@ -136,7 +141,7 @@ public class AdminService {
                     moved += chunk;
                     if (chunk < 500) break;
                 }
-                jdbc.sql("UPDATE reports SET status='RESOLVED',action='HIDE',reviewed_at=now() WHERE target_type='PLACE' AND target_id=:id AND status='PENDING'")
+                jdbc.sql("UPDATE reports SET status='REVIEWED',action='HIDE',reviewed_at=now() WHERE target_type='PLACE' AND target_id=:id AND status='PENDING'")
                         .param("id",source).update();
                 jdbc.sql("UPDATE batch_runs SET status='SUCCESS',processed_count=:count,started_at=coalesce(started_at,now()),finished_at=now() WHERE run_id=:id")
                         .param("count",moved).param("id",runId).update();

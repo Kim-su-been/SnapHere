@@ -61,6 +61,16 @@ public class PlaceRepository {
         return spec.query((rs, n) -> mapPlace(rs)).list();
     }
 
+    public Integer nearestDistance(double lat, double lng) {
+        return jdbc.sql("""
+                SELECT round(ST_Distance(p.geom, ST_SetSRID(ST_MakePoint(:lng,:lat),4326)::geography))::int
+                FROM places p
+                WHERE p.status='ACTIVE' AND p.has_coordinate=true
+                ORDER BY p.geom <-> ST_SetSRID(ST_MakePoint(:lng,:lat),4326)::geography, p.place_id
+                LIMIT 1
+                """).param("lat", lat).param("lng", lng).query(Integer.class).optional().orElse(null);
+    }
+
     public PlaceRecord placeRecord(long placeId) {
         return jdbc.sql("""
                 SELECT place_id,place_type,content_id,title,area_code,sigungu_code,verify_radius_m,view_count,status
@@ -248,7 +258,7 @@ public class PlaceRepository {
                     .param("detail", body.detail()).query((rs, n) -> new ReportRow(rs.getLong(1),
                             rs.getString(2), rs.getObject(3, OffsetDateTime.class))).single();
             long count = jdbc.sql("""
-                    SELECT count(*) FROM reports WHERE target_type='PLACE' AND target_id=:place AND status<>'REJECTED'
+                    SELECT count(*) FROM reports WHERE target_type='PLACE' AND target_id=:place
                     """).param("place", placeId).query(Long.class).single();
             if (count >= 3) {
                 jdbc.sql("UPDATE places SET status='HIDDEN',updated_at=now() WHERE place_id=:id AND status='ACTIVE'")
@@ -261,7 +271,7 @@ public class PlaceRepository {
     }
 
     private static String basePlaceSelect(UUID viewer, boolean distance) {
-        String distanceColumns = distance ? "round(ST_Distance(p.geom,ST_SetSRID(ST_MakePoint(:lng,:lat),4326)::geography))::int distance_m, (ST_Distance(p.geom,ST_SetSRID(ST_MakePoint(:lng,:lat),4326)::geography)<=p.verify_radius_m) verifiable," : "NULL::integer distance_m,NULL::boolean verifiable,";
+        String distanceColumns = distance ? "round(ST_Distance(p.geom,ST_SetSRID(ST_MakePoint(:lng,:lat),4326)::geography))::int distance_m, CASE WHEN CAST(:viewer AS UUID) IS NULL THEN NULL ELSE (ST_Distance(p.geom,ST_SetSRID(ST_MakePoint(:lng,:lat),4326)::geography)<=p.verify_radius_m) END verifiable," : "NULL::integer distance_m,NULL::boolean verifiable,";
         return """
                 SELECT p.place_id,p.place_type,p.title,p.addr1,p.image_url,
                   ST_Y(p.geom::geometry) lat,ST_X(p.geom::geometry) lng,p.post_count,p.visit_count,

@@ -1,6 +1,6 @@
 # ERD 참조
 
-> 데이터 설계 **v1.1.4** · 29개 테이블 · Percona PostgreSQL 17.10.2 + PostGIS 3.5.7
+> 데이터 설계 **v1.1.5** · Percona PostgreSQL 17.10.2 + PostGIS 3.5.7
 >
 > 실행 가능한 스키마 원본은 [`12-db-schema.dbml`](12-db-schema.dbml), 설계 판단과 인덱스는 [`04-data-design.md`](04-data-design.md) 에 있다.
 
@@ -71,8 +71,8 @@
 
 | 테이블 | 주요 컬럼 / 항목 | 설명 | 관련 요구사항 |
 |---|---|---|---|
-| heatmap_cells | cell_id(PK), grid_level, lat, lng, period(LAST_1H/LAST_24H/WEEKLY/MONTHLY), post_count, visit_count, user_count, top_place_id, sample_post_ids, last_posted_at, calculated_at · UNIQUE(grid_level, period, lat, lng) | 미리 집계하고 조회는 읽기만. 기간은 조회 시점 기준 롤링 윈도우. 실시간은 1분, 그 외 10분 주기. 후보 사진 최대 10장을 함께 보관하고 앱이 3초 간격으로 교체한다. 밀집도는 조회 시 로그 정규화. | MAP-010, MAP-011, MAP-012, MAP-016, MAP-022 |
-| region_stats | area_code, period(heatmap_period 공유), post_count, contributor_count · PK(area_code, period) | 지역 레이어 버블용. | MAP-005 |
+| heatmap_cells | cell_id(PK), grid_level, lat_index, lng_index, lat, lng, period(LAST_1H/LAST_24H/WEEKLY/MONTHLY), post_count, visit_count, user_count, top_place_id, sample_post_ids, sample_thumbnail_urls, last_posted_at, calculated_at · UNIQUE(period, grid_level, lat_index, lng_index) | 미리 집계하고 조회는 읽기만. 실시간은 1분, 그 외 10분 주기. 후보 ID·썸네일 URL 배열은 같은 순서로 최대 10개 저장한다. visit_count는 VST 구현 전까지 0이다. | MAP-008~025 |
+| region_stats | area_code, period(heatmap_period 공유), post_count, contributor_count, representative_post_id, calculated_at · PK(area_code, period) | 지역 레이어 버블과 대표 게시글용. | MAP-005, MAP-006 |
 | place_rankings | ranking_id(PK), place_id, area_code, period(DAILY/WEEKLY/MONTHLY/ALL), theme, score, rank_no, previous_rank, calculated_at · UNIQUE(place_id, period, theme) | 조회는 이 테이블만 읽는다. theme은 공식 콘텐츠 유형과 정규화된 사용자 태그에서 계산한다. 동점 시 보조 정렬 키 필요. | RNK-005, RNK-007, RNK-008 |
 | post_rankings | post_id, period(HOURS_24/WEEKLY/MONTHLY/ALL), score, rank_no, calculated_at · PK(post_id, period) | 기간별 인기 게시글·인기 피드는 이 테이블만 읽는다(조회 시 계산 금지). 팔로잉 가중치는 사용자별이라 이 score를 기준값으로 두고 조회 시 보정한다. | PST-035, CMU-002, CMU-007, CMU-008, CMU-009 |
 
@@ -158,8 +158,8 @@
 
 | 테이블 | PK | FK | Unique | 주요 컬럼 | 삭제·보존 | 관련 요구사항 | 설계 메모 |  |
 |---|---|---|---|---|---|---|---|---|
-| heatmap_cells | cell_id | top_place_id→places; sample_post_ids는 논리 참조 | (grid_level, period, lat, lng) | grid_level, lat, lng, period, post_count, visit_count, user_count, top_place_id, sample_post_ids, last_posted_at, calculated_at | 집계 | MAP-008~025 | intensity는 저장하지 않고 조회 시 maxCount로 로그 정규화해 내려준다 (MAP-010) |  |
-| region_stats | (area_code, period) | area_code→regions | PK 자체 | post_count, contributor_count, calculated_at | 집계 | MAP-005 | 지역 레이어 버블. period는 heatmap_period 공유 (MAP-005) |  |
+| heatmap_cells | cell_id | top_place_id→places; sample_post_ids는 논리 참조 | (period, grid_level, lat_index, lng_index) | grid_level, lat_index, lng_index, lat, lng, period, post_count, visit_count, user_count, top_place_id, sample_post_ids, sample_thumbnail_urls, last_posted_at, calculated_at | 집계 | MAP-008~025 | intensity는 저장하지 않고 조회 시 maxCount로 로그 정규화한다. 후보 두 배열은 같은 인덱스로 대응한다. |  |
+| region_stats | (area_code, period) | area_code→regions, representative_post_id→posts | PK 자체 | post_count, contributor_count, representative_post_id, calculated_at | 집계 | MAP-005~006 | 지역 레이어 버블과 대표 게시글. period는 heatmap_period 공유 |  |
 | place_rankings | ranking_id | place_id→places, area_code→regions | (place_id, period, theme) | area_code, period, theme, score, rank_no, previous_rank, calculated_at | 집계 | RNK-001~010 | 조회는 이 테이블만 읽는다. 조회 인덱스 (area_code, period, theme, rank_no) (DBML v1.1.3) |  |
 | post_rankings | (post_id, period) | post_id→posts.post_id | (period, rank_no) | score, rank_no, calculated_at | 집계 | PST-035, CMU-002, CMU-008~009 | 기간별 인기 게시글은 이 테이블만 읽는다. 조회 시 계산 금지 (JOB-013) |  |
 
@@ -236,5 +236,5 @@
 
 ---
 
-원본 스프레드시트: [`specs/snaphere-requirements-spec-v1.1.4.xlsx`](specs/snaphere-requirements-spec-v1.1.4.xlsx) · [`specs/snaphere-api-spec-v1.1.4.xlsx`](specs/snaphere-api-spec-v1.1.4.xlsx)
+원본 스프레드시트: [`specs/snaphere-requirements-spec-v1.1.5.xlsx`](specs/snaphere-requirements-spec-v1.1.5.xlsx) · [`specs/snaphere-api-spec-v1.1.5.xlsx`](specs/snaphere-api-spec-v1.1.5.xlsx)
 변경 이력: [`08-spec-changelog.md`](08-spec-changelog.md)
