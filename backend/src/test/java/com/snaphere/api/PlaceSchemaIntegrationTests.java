@@ -26,7 +26,7 @@ import java.util.UUID;
 class PlaceSchemaIntegrationTests {
     @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(
-            DockerImageName.parse("percona/percona-distribution-postgresql-with-postgis:17.10-2")
+            DockerImageName.parse("percona/percona-distribution-postgresql-with-postgis:17.10-5")
                     .asCompatibleSubstituteFor("postgres"));
     @Container
     static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7.4-alpine"))

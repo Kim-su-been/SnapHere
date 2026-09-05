@@ -9,7 +9,7 @@
 
 **Percona Distribution for PostgreSQL 17.10.2 + PostGIS 3.5.7 하나로 통일한다.** MySQL은
 사용하지 않는다. 로컬 개발과 Testcontainers에서는 PostGIS 포함 이미지
-`percona/percona-distribution-postgresql-with-postgis:17.10-2`를 사용한다.
+`percona/percona-distribution-postgresql-with-postgis:17.10-5`를 사용한다.
 
 이 변경은 DB 엔진 배포판과 패치 버전만 고정하며, 테이블·컬럼·인덱스·API 계약은 변경하지
 않는다. 따라서 명세 버전은 올리지 않는다.
