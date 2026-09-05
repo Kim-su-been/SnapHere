@@ -64,6 +64,9 @@ class UploadDraft {
     required this.title,
     required this.description,
     required this.place,
+    this.eventId,
+    this.fixedTags = const [],
+    this.userTags = const [],
   });
 
   final List<UploadPhoto> photos;
@@ -71,8 +74,30 @@ class UploadDraft {
   final String title;
   final String description;
   final UploadPlace place;
+  final String? eventId;
+  final List<String> fixedTags;
+  final List<String> userTags;
 
   List<String> get photoIds => photos.map((photo) => photo.id).toList();
+}
+
+@immutable
+class UploadEventContext {
+  const UploadEventContext({
+    required this.eventId,
+    required this.eventTitle,
+    required this.place,
+    required this.fixedTags,
+    required this.verifyRadiusM,
+    this.badgeTitle,
+  });
+
+  final String eventId;
+  final String eventTitle;
+  final UploadPlace place;
+  final List<String> fixedTags;
+  final int verifyRadiusM;
+  final String? badgeTitle;
 }
 
 @immutable

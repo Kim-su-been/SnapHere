@@ -1,6 +1,6 @@
 # API 명세서
 
-> API 명세서 · ERD **v1.1.3** · REST/JSON · Base URL `/api/v1`
+> API 명세서 · ERD **v1.1.5** · REST/JSON · Base URL `/api/v1`
 >
 > 모든 엔드포인트는 요구사항 ID에 매핑돼 있다. 매핑되지 않은 엔드포인트는 없다(§7).
 
@@ -99,7 +99,7 @@
 | API ID | API 이름 | Method | Path | 인증 | 중요도 | 설명 | 요청 스키마 | 응답 스키마 | 성공 | 주요 에러 | 페이징 | 캐시·멱등 | 관련 요구사항 | 관련 테이블·비고 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | API-MAP-001 | 지역 레이어 | GET | /api/v1/map/regions | Public | Must | 시도별 게시글 수와 대표 이미지 마커를 조회한다. | - | MapRegion[] | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | - | 10m | MAP-004~007 | region_stats, regions / ※ period는 heatmap_period 공유 |
-| API-MAP-002 | 히트맵 | GET | /api/v1/map/heatmap | Public | Must | 화면 범위·줌·기간에 맞는 정규화 히트맵 셀을 반환한다. | - | HeatmapResult | 200 | MAP_INVALID_BOUNDS, MAP_TOO_MANY_CELLS, COMMON_500 | - | nextRefreshAt까지 | MAP-008~019 | heatmap_cells<br>※ LAST_1H 데이터 부족 시 effectivePeriod=LAST_24H, fallbackApplied=true, maxCount로 intensity 정규화 |
+| API-MAP-002 | 히트맵 | GET | /api/v1/map/heatmap | Public | Must | 화면 범위·줌·기간에 맞는 정규화 히트맵 셀을 반환한다. | - | HeatmapResult | 200 | MAP_INVALID_BOUNDS, COMMON_500 | - | nextRefreshAt까지 | MAP-008~019 | heatmap_cells<br>※ LAST_1H 5건 미만이면 LAST_24H 폴백. 게시글 수 상위 500셀을 반환하고 초과 시 truncated=true |
 | API-MAP-003 | 사진 마커 | GET | /api/v1/map/photo-markers | Public | Must | 축소 시 최대 10개 후보, 확대 시 단일 사진의 지도 마커를 반환한다. | - | PhotoMarker[] | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | - | 10m | MAP-020~025 | heatmap_cells, posts, post_images<br>※ 클라이언트가 후보를 3초 간격으로 교체하며 재요청하지 않음 |
 | API-MAP-004 | 히트맵 셀 상세 | GET | /api/v1/map/cells/{cellKey} | Public | Should | 선택한 셀의 대표 장소와 집계값을 반환한다. | - | HeatmapCellDetail | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | - | - | MAP-017 | heatmap_cells, places |
 
@@ -189,7 +189,7 @@
 | 언어 | Accept-Language | ko-KR\|en-US\|zh-CN\|ja-JP | 지원하지 않으면 ko-KR 폴백 | SYS-010, SYS-012 |
 | 언어 | 관광정보 다국어 | place_details는 (place_id, language_code) 단위 저장 | 요청 언어의 상세가 없으면 해당 언어로 지연 적재 후 반환, 실패 시 ko-KR 폴백 | SYS-012, PLC-006 |
 | 원문 | 사용자 작성 글 | content+originalLanguageCode+translations(null 허용) | 원문이 진실의 원천; 번역은 후속 확장 | SYS-010 |
-| 식별자 | ID | 내부 PK는 bigint(auto increment), API는 불투명 string으로 노출 | 클라이언트는 형식을 가정하지 않는다. regions는 area_code, sigungu는 (area_code, sigungu_code)가 식별자 | SYS-009, PLC-001~002 |
+| 식별자 | ID | 내부 PK는 bigint(auto increment), API는 불투명 string으로 노출. users 만 uuid (v1.1.4 정정) | 클라이언트는 형식을 가정하지 않는다. regions는 area_code, sigungu는 (area_code, sigungu_code)가 식별자 users 는 구글 OAuth 기반이라 순번을 노출하지 않고 uuid 를 쓴다. | SYS-009, PLC-001~002 |
 | 좌표 | 공간 기준 | WGS84 lat/lng | mapx=경도, mapy=위도; 서버가 지역 역산 | PLC-005, PST-018 |
 | 멱등 | PUT/DELETE | 동일 요청 반복 시 같은 200 결과 | 팔로우·좋아요·저장 | SOC-002, SOC-007 |
 | 멱등 | POST 생성 | Idempotency-Key 헤더 | 게시글·장소 생성에서 네트워크 재시도 안전성 확보 | SYS-001 |
@@ -201,7 +201,7 @@
 | 캐시 | 공개 조회 | Cache-Control/ETag 사용 가능 | 히트맵은 nextRefreshAt 우선 | MAP-013, SYS-019 |
 | CORS | 허용 출처 | 환경별 allowlist | 와일드카드 금지 | SYS-014 |
 
-## 3. 요청 파라미터 (231개)
+## 3. 요청 파라미터 (235개)
 
 ### API-AUTH-001
 
@@ -362,8 +362,6 @@
 | GET | /api/v1/places/nearby | query | lat | number | Y | WGS84 -90~90 | 37.5796 | 위도 |
 | GET | /api/v1/places/nearby | query | lng | number | Y | WGS84 -180~180 | 126.977 | 경도 |
 | GET | /api/v1/places/nearby | query | radiusM | integer | N | 기본 500, 최대 20000 | 500 | 검색 반경 |
-| GET | /api/v1/places/nearby | query | cursor | string | N | 서버가 발급한 불투명 커서 | eyJ... | 다음 페이지 커서 |
-| GET | /api/v1/places/nearby | query | size | integer | N | 기본 20, 최대 50 | 20 | 페이지 크기 |
 
 ### API-PLC-005
 
@@ -427,7 +425,11 @@
 | POST | /api/v1/posts | body | eventId | uuid\|null | N | 이벤트 참여 시 | evt_01 | 이벤트 ID |
 | POST | /api/v1/posts | body | content | string | N | 최대 5000자 | 야경이 멋져요 | 캡션 원문 |
 | POST | /api/v1/posts | body | originalLanguageCode | string | Y | BCP 47 | ko | 원문 언어 |
-| POST | /api/v1/posts | body | images | array | Y | 1~4개, 발급 imageKey | [{imageKey:'posts/...',sortOrder:1}] | 업로드 완료 이미지 |
+| POST | /api/v1/posts | body | images | array | Y | 1~4개, 발급 imageKey | [{imageKey:'posts/...',sortOrder:1}] | 업로드 완료 이미지. 원소는 imageKey · sortOrder · aspectRatio · imageHash 네 필드다 (v1.1.4에서 원소 구조 명시) |
+| POST | /api/v1/posts | body | images[].imageKey | string | Y | presigned-urls 발급 키 | posts/{userId}/{uuid}.webp | 서버가 접두어로 발급 소유자를 확인한다. 남의 키는 MEDIA_NOT_FOUND (PST-014) |
+| POST | /api/v1/posts | body | images[].sortOrder | integer | Y | 1~4, 중복 불가 | 1 | 1부터다. 게시글당 1~4장이므로 값이 곧 몇 번째 사진인지를 뜻한다 (PST-001) |
+| POST | /api/v1/posts | body | images[].aspectRatio | number\|null | N | 0 초과 | 1.3333 | 메이슨리가 이미지 도착 전에 카드 높이를 잡아야 하는데 후처리 전까지 값이 없어 클라이언트가 아는 값을 함께 받는다. 후처리(JOB-003)가 실제 값으로 덮어쓴다 (PST-021, v1.1.4 추가) |
+| POST | /api/v1/posts | body | images[].imageHash | string\|null | N | SHA-256 소문자 16진수 64자 | a1b2... | 중복 409 를 등록 응답 전에 내리기 위한 값. 서버가 이 시점에 원본을 내려받아 계산하면 PST-019 와 어긋난다. 비우면 검사를 건너뛰고 후처리가 실제 해시로 덮어쓴다 (PST-031, v1.1.4 추가) |
 | POST | /api/v1/posts | body | tagNames | array<string> | Y | 고정 포함 1~10개 | ['서울','드라마촬영지'] | 사용자·추천 태그 |
 | POST | /api/v1/posts | body | source | enum | Y | CAMERA\|ALBUM | ALBUM | 업로드 경로 |
 | POST | /api/v1/posts | body | takenAt | datetime\|null | N | ISO-8601; source=CAMERA이면 필수(PST-023) | 예: 2026-08-30T10:00:00+09:00 | 촬영 시각 |
@@ -621,7 +623,7 @@
 | GET | /api/v1/map/heatmap | query | north | number | Y | 위도 | 37.8 | 북쪽 경계 |
 | GET | /api/v1/map/heatmap | query | zoom | number | Y | 지도 줌 | 11 | 줌 단계 |
 | GET | /api/v1/map/heatmap | query | period | enum | N | LAST_1H\|LAST_24H\|WEEKLY\|MONTHLY, 기본 WEEKLY | WEEKLY | 기간(MAP-011). 자정 기준이 아니라 조회 시점 기준 롤링 윈도우 |
-| GET | /api/v1/map/heatmap | query | forceRefresh | boolean | N | 게시 직후 true | false | 캐시 무효화 후 즉시 조회 |
+| GET | /api/v1/map/heatmap | query | forceRefresh | boolean | N | 게시 직후 true | false | 응답 캐시만 우회해 PostgreSQL 집계 스냅샷을 즉시 조회 |
 
 ### API-MAP-003
 
@@ -638,7 +640,7 @@
 
 | Method | Path | 위치 | 파라미터 | 타입 | 필수 | 제약·기본값 | 예시 | 설명 |
 |---|---|---|---|---|---|---|---|---|
-| GET | /api/v1/map/cells/{cellKey} | path | cellKey | uuid\|string | Y | URL encode | cellKey_01 | cellKey 경로 식별자 |
+| GET | /api/v1/map/cells/{cellKey} | path | cellKey | string | Y | hmc_ 접두어의 Base64URL 키 | hmc_V0VFS0xZfDJ8Mzc1MHwxMjY5MA | 기간·격자 단계·좌표 인덱스를 포함한 셀 식별자 |
 
 ### API-VST-001
 
@@ -1094,7 +1096,7 @@
 
 | 필드 경로 | 타입 | 필수 | 설명 | 예시 | 원천 |
 |---|---|---|---|---|---|
-| cellKey | string | Y | 격자 키 | z2:37.5:126.9 | heatmap_cells |
+| cellKey | string | Y | 기간·격자 단계·좌표 인덱스를 포함한 불투명 키 | hmc_V0VFS0xZfDJ8Mzc1MHwxMjY5MA | heatmap_cells |
 | lat | number | Y | 마커 위도 | 37.55 | heatmap_cells |
 | lng | number | Y | 마커 경도 | 126.99 | heatmap_cells |
 | candidates | PostSummary[] | Y | 축소 최대 10장·확대 1장 | [...] | posts |
@@ -1302,6 +1304,7 @@
 | candidates | PlaceSummary[] | Y | 거리순 후보 | [...] | places |
 | createAllowed | boolean | Y | 사용자 장소 생성 가능 | true | places |
 | searchedRadiusM | integer | Y | 적용 탐색 반경 | 500 | 계산 |
+| nearestDistanceM | integer\|null | Y | 반경 내 후보가 없을 때 전체 장소 중 최근접 거리(m) | 1250 | places |
 
 ### CreatePlaceResult
 
@@ -1473,18 +1476,18 @@
 | imageUrl | url | Y | 원본·최적화 이미지 URL | https://cdn/... | post_images |
 | thumbnailUrl | url | Y | 썸네일 URL | https://cdn/thumb/... | post_images |
 | aspectRatio | number | Y | 가로/세로 비율 | 1.333 | post_images |
-| sortOrder | integer | Y | 0부터 정렬 순서 | 0 | post_images |
+| sortOrder | integer | Y | 1부터 정렬 순서 (1~4) | 0 | post_images |
 
 ### HeatmapCell
 
 | 필드 경로 | 타입 | 필수 | 설명 | 예시 | 원천 |
 |---|---|---|---|---|---|
-| cellKey | string | Y | 격자 식별자 | z2:37.5:126.9 | heatmap_cells |
+| cellKey | string | Y | 기간·격자 단계·좌표 인덱스를 포함한 불투명 키 | hmc_V0VFS0xZfDJ8Mzc1MHwxMjY5MA | heatmap_cells |
 | lat | number | Y | 셀 중심 위도 | 37.55 | heatmap_cells |
 | lng | number | Y | 셀 중심 경도 | 126.99 | heatmap_cells |
 | postCount | integer | Y | 게시글 수 | 42 | heatmap_cells |
 | intensity | number | Y | 0~1 로그 정규화 밀집도 log(count+1)/log(maxCount+1) (MAP-010) | 0.62 | 계산 |
-| visitCount | integer | Y | 방문 수 | 31 | heatmap_cells |
+| visitCount | integer | Y | 기간 방문 수. VST 방문 저장 구현 전까지 0 | 0 | heatmap_cells |
 | userCount | integer | Y | 중복 제거 사용자 수 | 20 | heatmap_cells |
 | topPlaceId | uuid\|null | Y | 대표 장소 | plc_01 | heatmap_cells |
 | samplePostIds | uuid[] | Y | 최대 10개 후보 | [...] | heatmap_cells |
@@ -1568,7 +1571,6 @@
 | TAG_NOT_FOUND | 404 | 태그 | 태그 없음 | 병합·삭제된 태그 | 검색으로 이동 |
 | NOTIFICATION_NOT_FOUND | 404 | 알림 | 알림 없음 | 삭제·타 사용자 알림 | 알림함 새로고침 |
 | MAP_INVALID_BOUNDS | 422 | 지도 | 지도 경계값 오류 | west<east, south<north | 현재 화면 재요청 |
-| MAP_TOO_MANY_CELLS | 422 | 지도 | 조회 셀 수 초과 | 더 확대 필요 | 확대 힌트 |
 | BATCH_ALREADY_RUNNING | 409 | 운영 | 같은 배치 실행 중 | runId 제공 | 기존 실행 확인 |
 
 ## 6. 배치 · 비동기 작업 (13개)
@@ -1955,5 +1957,5 @@
 
 ---
 
-원본 스프레드시트: [`specs/snaphere-requirements-spec-v1.1.3.xlsx`](specs/snaphere-requirements-spec-v1.1.3.xlsx) · [`specs/snaphere-api-spec-v1.1.3.xlsx`](specs/snaphere-api-spec-v1.1.3.xlsx)
+원본 스프레드시트: [`specs/snaphere-requirements-spec-v1.1.5.xlsx`](specs/snaphere-requirements-spec-v1.1.5.xlsx) · [`specs/snaphere-api-spec-v1.1.5.xlsx`](specs/snaphere-api-spec-v1.1.5.xlsx)
 변경 이력: [`08-spec-changelog.md`](08-spec-changelog.md)

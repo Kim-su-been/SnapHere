@@ -30,7 +30,11 @@ class AppShell extends StatelessWidget {
             icon: Icon(Icons.add_circle_outline),
             label: '업로드',
           ),
-          NavigationDestination(icon: Icon(Icons.map_outlined), label: '지도'),
+          NavigationDestination(
+            icon: Icon(Icons.celebration_outlined),
+            selectedIcon: Icon(Icons.celebration),
+            label: '이벤트',
+          ),
           NavigationDestination(icon: Icon(Icons.person_outline), label: '마이'),
         ],
       ),

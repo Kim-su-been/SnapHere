@@ -1,6 +1,6 @@
 # ERD 참조
 
-> 데이터 설계 **v1.1.3** · 29개 테이블 · PostgreSQL 16 + PostGIS 3
+> 데이터 설계 **v1.1.5** · Percona PostgreSQL 17.10.2 + PostGIS 3.5.7
 >
 > 실행 가능한 스키마 원본은 [`12-db-schema.dbml`](12-db-schema.dbml), 설계 판단과 인덱스는 [`04-data-design.md`](04-data-design.md) 에 있다.
 
@@ -10,7 +10,7 @@
 
 | 테이블 | 주요 컬럼 / 항목 | 설명 | 관련 요구사항 |
 |---|---|---|---|
-| users | user_id, provider(GOOGLE), provider_user_id, email, nickname(20), profile_image_url, bio(200), locale, role(USER/ADMIN), status(ACTIVE/SUSPENDED/WITHDRAWN), upload_blocked_until, push_like_enabled, push_follow_enabled, push_badge_enabled, badge_count, follower_count, following_count, post_count, withdrawn_at, purge_scheduled_at, restore_key | 구글 OAuth 단일. 자격증명 컬럼과 회원 등급제는 두지 않는다 — role은 등급이 아니라 관리자 권한 구분이다. upload_blocked_until은 신고 누적 시 24시간 업로드 정지 해제 시각. | AUTH-001, AUTH-014, USER-003, USER-011, USER-015, USER-023, PST-032 |
+| users | id(uuid), provider(GOOGLE), provider_user_id, email, nickname(20), profile_image_url, bio(200), locale, role(USER/ADMIN), status(ACTIVE/SUSPENDED/WITHDRAWN), upload_blocked_until, push_like_enabled, push_follow_enabled, push_badge_enabled, badge_count, follower_count, following_count, post_count, withdrawn_at, purge_scheduled_at, restore_key | 구글 OAuth 단일. 자격증명 컬럼과 회원 등급제는 두지 않는다 — role은 등급이 아니라 관리자 권한 구분이다. upload_blocked_until은 신고 누적 시 24시간 업로드 정지 해제 시각. 식별자는 uuid 다 — 구글 OAuth 기반이라 순번을 노출하지 않고, 구현된 V1__auth_schema.sql 이 uuid 로 만든다 (v1.1.4 정정). | AUTH-001, AUTH-014, USER-003, USER-011, USER-015, USER-023, PST-032 |
 | user_devices | device_id, user_id, fcm_token, platform, app_version | 앱 시작마다 갱신. 발송 실패 시 토큰을 비운다. | USER-007, NTF-010 |
 | refresh_tokens | token_hash, user_id, device_id, expires_at, revoked_at | 원문이 아니라 해시만 저장. 1회용 회전. | AUTH-008, AUTH-009 |
 | account_deletion_logs | log_id(PK), user_id, reason, content_action(KEEP_ANONYMIZED/DELETE_ALL), deleted_at, purged_at | 탈퇴 감사 기록. | USER-015, USER-019 |
@@ -27,7 +27,7 @@
 |---|---|---|---|
 | regions | area_code(PK), name_ko, name_en, representative_image_url, default_event_verify_radius_m | 17개 시도 마스터. 시도 코드는 비연속(1~8, 31~39). 라벨 좌표는 두지 않고 대표 이미지를 선택 대상으로 쓴다. area_code를 단독 PK로 둬야 다른 8개 테이블의 area_code 외래키가 성립한다. | PLC-001, MAP-006, PLC-022 |
 | sigungu | area_code, sigungu_code, name_ko, name_en · PK(area_code, sigungu_code) | areaCode 오퍼레이션으로 적재하는 시군구 마스터. v1.1.3에서 regions에서 분리했다. | PLC-002, PLC-020 |
-| places | place_id, place_type(OFFICIAL/USER), content_id, content_type_id, title, addr1, geom, verify_radius_m, area_code, sigungu_code, has_coordinate, post_count, visit_count, view_count, created_by | mapx=경도, mapy=위도로 geom 구성. GIST 공간 인덱스 필수. 관광지 500m·사용자 장소 100m 기본 인증 반경. view_count는 Redis 집계 후 주기 반영. | PLC-003, PLC-005, PLC-014, PLC-020, PLC-022 |
+| places | place_id, place_type(OFFICIAL/USER), content_id, content_type_id, title, addr1, geom, verify_radius_m, area_code, sigungu_code, has_coordinate, post_count, visit_count, view_count, created_by, status(ACTIVE/HIDDEN/DELETED) | mapx=경도, mapy=위도로 geom 구성. GIST 공간 인덱스 필수. 관광지 500m·사용자 장소 100m 기본 인증 반경. view_count는 Redis 집계 후 주기 반영. status 는 장소 숨김 상태를 담는다 (PLC-023, v1.1.4 추가). | PLC-003, PLC-005, PLC-014, PLC-020, PLC-022 |
 | place_details | place_id, language_code, overview, tel, homepage, use_time, rest_date · PK(place_id, language_code) | 장문 컬럼 분리. 목록 응답에서 제외한다. 언어별로 한 행이며 최초 조회 시점에 그 언어를 채운다. | PLC-006, SYS-012, SYS-018 |
 
 ### 게시글
@@ -71,8 +71,8 @@
 
 | 테이블 | 주요 컬럼 / 항목 | 설명 | 관련 요구사항 |
 |---|---|---|---|
-| heatmap_cells | cell_id(PK), grid_level, lat, lng, period(LAST_1H/LAST_24H/WEEKLY/MONTHLY), post_count, visit_count, user_count, top_place_id, sample_post_ids, last_posted_at, calculated_at · UNIQUE(grid_level, period, lat, lng) | 미리 집계하고 조회는 읽기만. 기간은 조회 시점 기준 롤링 윈도우. 실시간은 1분, 그 외 10분 주기. 후보 사진 최대 10장을 함께 보관하고 앱이 3초 간격으로 교체한다. 밀집도는 조회 시 로그 정규화. | MAP-010, MAP-011, MAP-012, MAP-016, MAP-022 |
-| region_stats | area_code, period(heatmap_period 공유), post_count, contributor_count · PK(area_code, period) | 지역 레이어 버블용. | MAP-005 |
+| heatmap_cells | cell_id(PK), grid_level, lat_index, lng_index, lat, lng, period(LAST_1H/LAST_24H/WEEKLY/MONTHLY), post_count, visit_count, user_count, top_place_id, sample_post_ids, sample_thumbnail_urls, last_posted_at, calculated_at · UNIQUE(period, grid_level, lat_index, lng_index) | 미리 집계하고 조회는 읽기만. 실시간은 1분, 그 외 10분 주기. 후보 ID·썸네일 URL 배열은 같은 순서로 최대 10개 저장한다. visit_count는 VST 구현 전까지 0이다. | MAP-008~025 |
+| region_stats | area_code, period(heatmap_period 공유), post_count, contributor_count, representative_post_id, calculated_at · PK(area_code, period) | 지역 레이어 버블과 대표 게시글용. | MAP-005, MAP-006 |
 | place_rankings | ranking_id(PK), place_id, area_code, period(DAILY/WEEKLY/MONTHLY/ALL), theme, score, rank_no, previous_rank, calculated_at · UNIQUE(place_id, period, theme) | 조회는 이 테이블만 읽는다. theme은 공식 콘텐츠 유형과 정규화된 사용자 태그에서 계산한다. 동점 시 보조 정렬 키 필요. | RNK-005, RNK-007, RNK-008 |
 | post_rankings | post_id, period(HOURS_24/WEEKLY/MONTHLY/ALL), score, rank_no, calculated_at · PK(post_id, period) | 기간별 인기 게시글·인기 피드는 이 테이블만 읽는다(조회 시 계산 금지). 팔로잉 가중치는 사용자별이라 이 score를 기준값으로 두고 조회 시 보정한다. | PST-035, CMU-002, CMU-007, CMU-008, CMU-009 |
 
@@ -86,7 +86,7 @@
 
 | 테이블 | 주요 컬럼 / 항목 | 설명 | 관련 요구사항 |
 |---|---|---|---|
-| reports | report_id, reporter_id, target_type, target_id, reason, status | 동일 대상 중복 신고 불가. | PST-043, PST-044 |
+| reports | report_id, reporter_id, target_type, target_id, reason, status, detail, action(KEEP/HIDE/DELETE), reviewed_at, created_at | 동일 대상 중복 신고 불가. action·reviewed_at 은 운영자 검토 결과를 담는다. status 와 짝이 맞아야 하므로 DB CHECK 로 묶는다 (SYS-017, v1.1.4 추가). | PST-043, PST-044 |
 | sync_logs | sync_id, job_type, area_code, content_type_id, result(SUCCESS/FAIL/PARTIAL), count, message, created_at | 조합 단위 트랜잭션 분리 결과 기록. | PLC-009 |
 | search_logs | log_id(PK), keyword, area_code, searched_at | 인기 검색어 집계용. 최근 검색어(SCH-011)·최근 본 장소(VST-006) 저장소는 미정 — 앱 로컬·Redis·별도 테이블. | SCH-010, SCH-011 |
 
@@ -97,7 +97,7 @@
 
 | 테이블 | PK | FK | Unique | 주요 컬럼 | 삭제·보존 | 관련 요구사항 | 설계 메모 |  |
 |---|---|---|---|---|---|---|---|---|
-| users | user_id | - | (provider, provider_user_id) | provider, provider_user_id, email, nickname(20), profile_image_url, bio(200), locale, role, status, upload_blocked_until, push_like_enabled, push_follow_enabled, push_badge_enabled, terms_agreed_at, badge_count, follower_count, following_count, post_count, withdrawn_at, purge_scheduled_at, restore_key | 논리 | AUTH-001, AUTH-014, USER-001~023, PST-032 | DBML v1.1.3 정합. terms_agreed_at만 보강(USER-006 근거, DBML 미포함) |  |
+| users | id (uuid) | - | (provider, provider_user_id) | provider, provider_user_id, email, nickname(20), profile_image_url, bio(200), locale, role, status, upload_blocked_until, push_like_enabled, push_follow_enabled, push_badge_enabled, terms_agreed_at, badge_count, follower_count, following_count, post_count, withdrawn_at, purge_scheduled_at, restore_key | 논리 | AUTH-001, AUTH-014, USER-001~023, PST-032 | DBML v1.1.3 정합. terms_agreed_at만 보강(USER-006 근거, DBML 미포함) PK 는 uuid — 구현된 V1__auth_schema.sql 기준 (v1.1.4 정정). |  |
 | user_devices | device_id | user_id→users.user_id | (user_id, device_id) | fcm_token, platform, app_version | 물리 | USER-007, NTF-010 | 사용자별 복수 기기 |  |
 | refresh_tokens | token_hash | user_id→users, device_id→user_devices | token_hash | expires_at, revoked_at | 물리 | AUTH-007~009 | 원문 미저장 |  |
 | account_deletion_logs | log_id | user_id→users.user_id | - | reason, content_action, purged_at | 감사 보존 | USER-015, USER-019 | DBML v1.1.3 정합 — 대리키 PK |  |
@@ -158,8 +158,8 @@
 
 | 테이블 | PK | FK | Unique | 주요 컬럼 | 삭제·보존 | 관련 요구사항 | 설계 메모 |  |
 |---|---|---|---|---|---|---|---|---|
-| heatmap_cells | cell_id | top_place_id→places; sample_post_ids는 논리 참조 | (grid_level, period, lat, lng) | grid_level, lat, lng, period, post_count, visit_count, user_count, top_place_id, sample_post_ids, last_posted_at, calculated_at | 집계 | MAP-008~025 | intensity는 저장하지 않고 조회 시 maxCount로 로그 정규화해 내려준다 (MAP-010) |  |
-| region_stats | (area_code, period) | area_code→regions | PK 자체 | post_count, contributor_count, calculated_at | 집계 | MAP-005 | 지역 레이어 버블. period는 heatmap_period 공유 (MAP-005) |  |
+| heatmap_cells | cell_id | top_place_id→places; sample_post_ids는 논리 참조 | (period, grid_level, lat_index, lng_index) | grid_level, lat_index, lng_index, lat, lng, period, post_count, visit_count, user_count, top_place_id, sample_post_ids, sample_thumbnail_urls, last_posted_at, calculated_at | 집계 | MAP-008~025 | intensity는 저장하지 않고 조회 시 maxCount로 로그 정규화한다. 후보 두 배열은 같은 인덱스로 대응한다. |  |
+| region_stats | (area_code, period) | area_code→regions, representative_post_id→posts | PK 자체 | post_count, contributor_count, representative_post_id, calculated_at | 집계 | MAP-005~006 | 지역 레이어 버블과 대표 게시글. period는 heatmap_period 공유 |  |
 | place_rankings | ranking_id | place_id→places, area_code→regions | (place_id, period, theme) | area_code, period, theme, score, rank_no, previous_rank, calculated_at | 집계 | RNK-001~010 | 조회는 이 테이블만 읽는다. 조회 인덱스 (area_code, period, theme, rank_no) (DBML v1.1.3) |  |
 | post_rankings | (post_id, period) | post_id→posts.post_id | (period, rank_no) | score, rank_no, calculated_at | 집계 | PST-035, CMU-002, CMU-008~009 | 기간별 인기 게시글은 이 테이블만 읽는다. 조회 시 계산 금지 (JOB-013) |  |
 
@@ -236,5 +236,5 @@
 
 ---
 
-원본 스프레드시트: [`specs/snaphere-requirements-spec-v1.1.3.xlsx`](specs/snaphere-requirements-spec-v1.1.3.xlsx) · [`specs/snaphere-api-spec-v1.1.3.xlsx`](specs/snaphere-api-spec-v1.1.3.xlsx)
+원본 스프레드시트: [`specs/snaphere-requirements-spec-v1.1.5.xlsx`](specs/snaphere-requirements-spec-v1.1.5.xlsx) · [`specs/snaphere-api-spec-v1.1.5.xlsx`](specs/snaphere-api-spec-v1.1.5.xlsx)
 변경 이력: [`08-spec-changelog.md`](08-spec-changelog.md)

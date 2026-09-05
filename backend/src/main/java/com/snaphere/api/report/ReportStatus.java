@@ -1,0 +1,11 @@
+package com.snaphere.api.report;
+
+/** 신고 처리 상태. (SYS-017) */
+public enum ReportStatus {
+
+    /** 접수됨. 운영자 검토 대기. */
+    PENDING,
+
+    /** 운영자가 검토를 마쳤다. {@code action} 에 무엇을 했는지 남는다. */
+    REVIEWED
+}

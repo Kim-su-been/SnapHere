@@ -38,6 +38,8 @@ class UploadState {
     this.isSubmitting = false,
     this.submitMessage,
     this.result,
+    this.eventContext,
+    this.userTags = const [],
   });
 
   final List<UploadPhoto> recentPhotos;
@@ -56,6 +58,8 @@ class UploadState {
   final bool isSubmitting;
   final String? submitMessage;
   final UploadResult? result;
+  final UploadEventContext? eventContext;
+  final List<String> userTags;
 
   List<UploadPhoto> get photos => [...recentPhotos, ...draftPhotos];
 
@@ -94,6 +98,8 @@ class UploadState {
     String? submitMessage,
     bool clearSubmitMessage = false,
     UploadResult? result,
+    UploadEventContext? eventContext,
+    List<String>? userTags,
   }) => UploadState(
     recentPhotos: recentPhotos ?? this.recentPhotos,
     draftPhotos: draftPhotos ?? this.draftPhotos,
@@ -117,6 +123,8 @@ class UploadState {
         ? null
         : submitMessage ?? this.submitMessage,
     result: result ?? this.result,
+    eventContext: eventContext ?? this.eventContext,
+    userTags: userTags ?? this.userTags,
   );
 }
 
@@ -218,11 +226,12 @@ class UploadController extends AsyncNotifier<UploadState> {
       current.copyWith(
         step: UploadStep.form,
         title: current.title.isEmpty ? primary.suggestedTitle ?? '' : null,
-        isMatchingLocation: true,
+        isMatchingLocation: current.eventContext == null,
         clearLocationMessage: true,
         clearSubmitMessage: true,
       ),
     );
+    if (current.eventContext != null) return;
     try {
       final places = await _repository.matchPlaces(primary);
       if (!ref.mounted) return;
@@ -267,6 +276,43 @@ class UploadController extends AsyncNotifier<UploadState> {
     );
   }
 
+  void applyEventContext(UploadEventContext context) {
+    final current = state.requireValue;
+    if (current.eventContext?.eventId == context.eventId) return;
+    state = AsyncData(
+      current.copyWith(
+        eventContext: context,
+        placeMatches: [context.place],
+        selectedPlace: context.place,
+        clearLocationMessage: true,
+        isMatchingLocation: false,
+      ),
+    );
+  }
+
+  void addUserTag(String value) {
+    final current = state.requireValue;
+    final normalized = value.trim().replaceFirst(RegExp(r'^#'), '');
+    if (normalized.isEmpty ||
+        current.userTags.length >= 8 ||
+        current.userTags.contains(normalized) ||
+        current.eventContext?.fixedTags.contains(normalized) == true) {
+      return;
+    }
+    state = AsyncData(
+      current.copyWith(userTags: [...current.userTags, normalized]),
+    );
+  }
+
+  void removeUserTag(String value) {
+    final current = state.requireValue;
+    state = AsyncData(
+      current.copyWith(
+        userTags: current.userTags.where((tag) => tag != value).toList(),
+      ),
+    );
+  }
+
   Future<List<UploadPlace>> searchPlaces(String keyword) =>
       _repository.searchPlaces(keyword);
 
@@ -289,6 +335,9 @@ class UploadController extends AsyncNotifier<UploadState> {
           title: current.title.trim(),
           description: current.description.trim(),
           place: current.selectedPlace!,
+          eventId: current.eventContext?.eventId,
+          fixedTags: current.eventContext?.fixedTags ?? const [],
+          userTags: current.userTags,
         ),
       );
       if (!ref.mounted) return;

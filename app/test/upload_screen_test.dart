@@ -18,6 +18,7 @@ class _StubUploadRepository implements UploadRepository {
   final bool hasMetadata;
   final bool emptyGallery;
   final bool failSubmit;
+  UploadDraft? submittedDraft;
 
   static const place = UploadPlace(
     id: 'place-1',
@@ -66,6 +67,7 @@ class _StubUploadRepository implements UploadRepository {
   @override
   Future<UploadResult> createPost(UploadDraft draft) async {
     if (failSubmit) throw Exception('network error');
+    submittedDraft = draft;
     return const UploadResult(
       postId: 'post-1',
       badgeTitle: '축제 참가 뱃지 획득!',
@@ -105,6 +107,36 @@ Future<void> _goToForm(WidgetTester tester) async {
 }
 
 void main() {
+  test('이벤트 컨텍스트와 고정·자유 태그가 게시 요청에 보존된다', () async {
+    final repository = _StubUploadRepository();
+    final container = ProviderContainer(
+      overrides: [uploadRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+    await container.read(uploadControllerProvider.future);
+    final controller = container.read(uploadControllerProvider.notifier);
+
+    controller.applyEventContext(
+      const UploadEventContext(
+        eventId: 'event-1',
+        eventTitle: '서울 빛초롱 축제',
+        place: _StubUploadRepository.place,
+        fixedTags: ['서울', '서울빛초롱축제'],
+        verifyRadiusM: 2000,
+      ),
+    );
+    controller.addUserTag('야경');
+    controller.showReview();
+    await controller.showForm();
+    controller.updateTitle('빛초롱의 밤');
+    await controller.submit();
+
+    expect(repository.submittedDraft?.eventId, 'event-1');
+    expect(repository.submittedDraft?.place.id, 'place-1');
+    expect(repository.submittedDraft?.fixedTags, ['서울', '서울빛초롱축제']);
+    expect(repository.submittedDraft?.userTags, ['야경']);
+  });
+
   testWidgets('갤러리에서 사진 확인과 자동 매칭 폼을 거쳐 업로드한다', (tester) async {
     await tester.binding.setSurfaceSize(const Size(412, 893));
     addTearDown(() => tester.binding.setSurfaceSize(null));

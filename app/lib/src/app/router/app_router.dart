@@ -12,6 +12,8 @@ import 'package:snap_here/src/features/auth/presentation/onboarding_screen.dart'
 import 'package:snap_here/src/features/auth/presentation/profile_setup_screen.dart';
 import 'package:snap_here/src/features/community/presentation/community_screen.dart';
 import 'package:snap_here/src/features/community/presentation/community_search_screen.dart';
+import 'package:snap_here/src/features/event/presentation/event_detail_screen.dart';
+import 'package:snap_here/src/features/event/presentation/event_screen.dart';
 import 'package:snap_here/src/features/home/presentation/home_screen.dart';
 import 'package:snap_here/src/features/map/presentation/map_screen.dart';
 import 'package:snap_here/src/features/profile/presentation/profile_screen.dart';
@@ -109,7 +111,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(path: '/map', builder: (_, _) => const MapScreen()),
+              GoRoute(path: '/events', builder: (_, _) => const EventScreen()),
             ],
           ),
           StatefulShellBranch(
@@ -122,9 +124,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-      GoRoute(path: '/upload', builder: (_, _) => const UploadScreen()),
-      // 하단 탭에서는 빠졌지만 화면은 그대로 살아 있다.
-      // 랭킹을 탭으로 되살릴지 이벤트로 바꿀지는 05 Event 작업 때 정한다.
+      GoRoute(
+        path: '/upload',
+        builder: (_, state) =>
+            UploadScreen(eventId: state.uri.queryParameters['eventId']),
+      ),
+      GoRoute(
+        path: '/events/:eventId',
+        builder: (_, state) =>
+            EventDetailScreen(eventId: state.pathParameters['eventId']!),
+      ),
+      GoRoute(path: '/map', builder: (_, _) => const MapScreen()),
+      // 하단 탭 4번째는 Wireframe_v3 기준 이벤트로 확정했고 랭킹 화면은
+      // 기존 딥 링크 호환을 위해 최상위 라우트로 유지한다.
       GoRoute(path: '/rankings', builder: (_, _) => const RankingsScreen()),
       GoRoute(
         path: '/search',

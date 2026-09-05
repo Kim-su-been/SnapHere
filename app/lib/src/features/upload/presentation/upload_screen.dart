@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as image;
 import 'package:snap_here/src/app/theme/app_tokens.dart';
+import 'package:snap_here/src/features/event/application/event_providers.dart';
 import 'package:snap_here/src/features/upload/application/upload_controller.dart';
 import 'package:snap_here/src/features/upload/domain/upload_models.dart';
 
@@ -66,11 +67,44 @@ Future<bool> _confirmUploadCancel(BuildContext context) async {
 }
 
 class UploadScreen extends ConsumerWidget {
-  const UploadScreen({super.key});
+  const UploadScreen({this.eventId, super.key});
+
+  final String? eventId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final upload = ref.watch(uploadControllerProvider);
+    final eventUpload = eventId == null
+        ? null
+        : ref.watch(eventUploadContextProvider(eventId!));
+    if (eventUpload?.isLoading == true) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (eventUpload?.hasError == true) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('이벤트 참여')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.event_busy_outlined, size: 48),
+                const SizedBox(height: AppSpacing.md),
+                Text('${eventUpload!.error}', textAlign: TextAlign.center),
+                const SizedBox(height: AppSpacing.lg),
+                FilledButton(
+                  onPressed: () =>
+                      ref.invalidate(eventUploadContextProvider(eventId!)),
+                  child: const Text('다시 시도'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    final resolvedEvent = eventUpload?.value;
     return upload.when(
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
@@ -99,15 +133,41 @@ class UploadScreen extends ConsumerWidget {
           ),
         ),
       ),
-      data: (state) => _UploadFlowPopScope(
-        state: state,
-        child: switch (state.step) {
-          UploadStep.gallery => _GalleryStep(state),
-          UploadStep.review => _ReviewStep(state),
-          UploadStep.form => _FormStep(state),
-          UploadStep.complete => _CompleteStep(state),
-        },
-      ),
+      data: (state) {
+        if (resolvedEvent != null &&
+            state.eventContext?.eventId != resolvedEvent.event.eventId) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ref
+                .read(uploadControllerProvider.notifier)
+                .applyEventContext(
+                  UploadEventContext(
+                    eventId: resolvedEvent.event.eventId,
+                    eventTitle: resolvedEvent.event.title,
+                    place: UploadPlace(
+                      id: resolvedEvent.place.placeId,
+                      name: resolvedEvent.place.name,
+                      address: resolvedEvent.place.address,
+                    ),
+                    fixedTags: resolvedEvent.fixedTags,
+                    verifyRadiusM: resolvedEvent.verifyRadiusM,
+                    badgeTitle: resolvedEvent.badge?.name,
+                  ),
+                );
+          });
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        return _UploadFlowPopScope(
+          state: state,
+          child: switch (state.step) {
+            UploadStep.gallery => _GalleryStep(state),
+            UploadStep.review => _ReviewStep(state),
+            UploadStep.form => _FormStep(state),
+            UploadStep.complete => _CompleteStep(state),
+          },
+        );
+      },
     );
   }
 }
@@ -441,6 +501,10 @@ class _FormStep extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
             children: [
+              if (state.eventContext case final eventContext?) ...[
+                _EventUploadBanner(context: eventContext),
+                const SizedBox(height: AppSpacing.lg),
+              ],
               SizedBox(
                 height: 60,
                 child: ListView.separated(
@@ -580,6 +644,45 @@ class _FormStep extends ConsumerWidget {
                   contentPadding: EdgeInsets.all(14),
                 ),
               ),
+              if (state.eventContext case final eventContext?) ...[
+                const SizedBox(height: AppSpacing.lg),
+                const _FieldLabel('이벤트 태그'),
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    for (final tag in eventContext.fixedTags)
+                      Chip(
+                        avatar: const Icon(Icons.lock_outline, size: 14),
+                        label: Text('#$tag'),
+                      ),
+                    for (final tag in state.userTags)
+                      InputChip(
+                        label: Text('#$tag'),
+                        onDeleted: () => controller.removeUserTag(tag),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  enabled: state.userTags.length < 8,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: controller.addUserTag,
+                  decoration: InputDecoration(
+                    hintText: state.userTags.length < 8
+                        ? '태그 입력 후 완료 (${state.userTags.length}/8)'
+                        : '자유 태그를 모두 입력했어요',
+                    prefixText: '# ',
+                    constraints: const BoxConstraints(minHeight: 46),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  '잠긴 태그 2개는 행사 참여 확인을 위해 변경할 수 없어요.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
               if (state.submitMessage case final message?) ...[
                 const SizedBox(height: AppSpacing.lg),
                 Semantics(
@@ -597,6 +700,52 @@ class _FormStep extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _EventUploadBanner extends StatelessWidget {
+  const _EventUploadBanner({required this.context});
+
+  final UploadEventContext context;
+
+  @override
+  Widget build(BuildContext buildContext) => Container(
+    padding: const EdgeInsets.all(AppSpacing.lg),
+    decoration: BoxDecoration(
+      color: AppColors.brandSubtle,
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      border: Border.all(color: AppColors.brand),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.celebration_outlined, size: 28),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.eventTitle,
+                style: Theme.of(buildContext).textTheme.labelLarge,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                '${context.place.name} · 인증 반경 ${context.verifyRadiusM}m',
+                style: Theme.of(buildContext).textTheme.bodySmall,
+              ),
+              if (context.badgeTitle case final badge?)
+                Text(
+                  '획득 가능: $badge',
+                  style: Theme.of(buildContext).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _CompleteStep extends StatelessWidget {
