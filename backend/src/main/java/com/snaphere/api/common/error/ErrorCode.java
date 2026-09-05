@@ -27,6 +27,7 @@ public enum ErrorCode {
     AUTH_TERMS_REQUIRED(HttpStatus.FORBIDDEN, "error.auth.termsRequired"),
     USER_NICKNAME_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "error.user.nicknameInvalid"),
     USER_WITHDRAWN(HttpStatus.CONFLICT, "error.user.withdrawn"),
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "error.user.notFound"),
     ADMIN_REQUIRED(HttpStatus.FORBIDDEN, "error.auth.adminRequired"),
 
     // 미디어
@@ -45,6 +46,9 @@ public enum ErrorCode {
 
     // 지도
     MAP_INVALID_BOUNDS(HttpStatus.UNPROCESSABLE_ENTITY, "error.map.invalidBounds"),
+
+    SOC_SELF_FOLLOW(HttpStatus.BAD_REQUEST, "error.social.selfFollow"),
+    SOC_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "error.social.dailyLimit"),
 
     // 댓글 (CMU-012 ~ CMU-018)
     COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "error.comment.notFound"),

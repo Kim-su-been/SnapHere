@@ -1,0 +1,3 @@
+package com.snaphere.api.social;
+import com.snaphere.api.common.error.*; import java.nio.charset.StandardCharsets; import java.time.*; import java.util.*;
+record FollowCursor(Instant createdAt,UUID userId){ String encode(){return Base64.getUrlEncoder().withoutPadding().encodeToString((createdAt.toEpochMilli()+":"+userId).getBytes(StandardCharsets.UTF_8));} static FollowCursor decode(String value){if(value==null||value.isBlank())return null;try{String s=new String(Base64.getUrlDecoder().decode(value),StandardCharsets.UTF_8);String[] p=s.split(":",2);return new FollowCursor(Instant.ofEpochMilli(Long.parseLong(p[0])),UUID.fromString(p[1]));}catch(Exception e){throw new ApiException(ErrorCode.COMMON_400,Map.of("field","cursor"));}} }
