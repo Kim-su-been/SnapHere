@@ -95,11 +95,11 @@ Docker 로 띄우는 것이 가장 간단하다. PostGIS 가 포함된 이미지
 ```bash
 docker run -d --name snaphere-db -p 5432:5432 \
   -e POSTGRES_DB=snaphere -e POSTGRES_USER=snaphere -e POSTGRES_PASSWORD=snaphere \
-  percona/percona-distribution-postgresql-with-postgis:17.10-2
+  percona/percona-distribution-postgresql-with-postgis:17.10-5
 ```
 
 Percona Distribution 릴리스 `17.10.2`에 대응하는 PostGIS 포함 Docker 이미지 태그는
-`17.10-2`다.
+`17.10-5`다.
 
 `spring.jpa.hibernate.ddl-auto` 는 `validate` 다. 엔티티와 마이그레이션이 어긋나면 애플리케이션이
 기동하지 않고 어느 컬럼이 다른지 알려 준다 — 스키마를 Hibernate 가 바꾸는 일은 없다.

@@ -268,6 +268,29 @@
 | `heatmap_cells` | 변경 | 후보 게시글 ID만 저장 → 동일 순서의 썸네일 URL 배열과 정수 좌표 인덱스 저장 | MAP-009, MAP-025 |
 | `HeatmapCell.visitCount` | 정정 | 기간별 방문 원천 미구현인데 예시값 제공 → VST 구현 전까지 0 | DEC-20260905-007 |
 
+### v1.1.5 데이터 설계 정본 교정 (2026-09-05)
+
+요구사항·API 내용과 버전 번호는 바꾸지 않고, 사용자 제공 ERD를 최신 정본으로 다시 지정한 문서 교정이다. 아래 항목은 앞선 v1.1.4·v1.1.5 구현 정합 기록을 삭제하지 않고 데이터 설계 정본에서 되돌린다. 현재 Flyway·애플리케이션 구현은 이 교정으로 자동 변경되지 않는다.
+
+| 대상 | 구분 | 변경 전 → 변경 후 | 근거 |
+| --- | --- | --- | --- |
+| 데이터 설계 테이블 수 | 정정 | 29개 및 부분 DBML 11개 → 사용자 제공 ERD에 실제 선언된 28개 | DEC-20260905-011 |
+| `tier_logs` | 삭제 | 데이터 설계 정본 포함 → 최신 정본에서 의도적으로 제외 | DEC-20260905-011 |
+| `heatmap_refresh_state` | 정정 | 부분 DBML에 정본 테이블처럼 포함 → 구현 보조 테이블로 분류하고 정본에서 제외 | DEC-20260905-011 |
+| `users` | 정정 | `id uuid` → `user_id bigint` | 사용자 제공 ERD, DEC-20260905-011 |
+| 22개 상태·종류 타입 | 정정 | 문자열과 CHECK 중심 → PostgreSQL native enum | 사용자 제공 ERD, DEC-20260905-011 |
+| `places` | 정정 | 위·경도에서 생성한 `geom`, `status`, `updated_at` 포함 → nullable `geography(Point,4326)` 직접 저장, `has_coordinate` 유지, `status`·`updated_at` 제외 | 사용자 제공 ERD, DEC-20260905-011 |
+| `posts.status` | 정정 | `ACTIVE/HIDDEN/DELETED` → `ACTIVE/BLINDED/DELETED` | 사용자 제공 ERD `post_status` |
+| `post_images` | 정정 | `sort_order` 1~4와 `image_hash`·`created_at` → `sort_order` 0~3, 두 컬럼 제외 | 사용자 제공 ERD `post_images` |
+| `heatmap_cells` | 정정 | 정수 좌표 인덱스·썸네일 URL 배열 포함 → 숫자형 중심 좌표와 JSON `sample_post_ids`만 유지 | 사용자 제공 ERD `heatmap_cells` |
+| `region_stats` | 정정 | `representative_post_id`·`calculated_at` 포함 → 두 컬럼 제외 | 사용자 제공 ERD `region_stats` |
+| `reports` | 정정 | `detail`·`action`·`reviewed_at` 포함 → `reason`·`status`·`created_at`만 유지 | 사용자 제공 ERD `reports` |
+| `search_logs` | 정정 | 사용자별 최근 검색을 위한 `user_id` 포함 → 인기 검색어 집계용으로 `user_id` 제외 | 사용자 제공 ERD `search_logs` |
+| `API-PST-003` | 정정 | 저장 테이블에 `tier_logs` 포함 → `posts`, `post_images`, `post_tags`, `visits`, `user_badges` | PST-001~032, DEC-20260905-011 |
+| `API-PST-006` | 정정 | 상세 조회 저장 테이블에 `tier_logs` 포함 → `posts`, `post_images`, `post_tags`, `users`, `places` | PST-033, PST-042, PST-046~047, DEC-20260905-011 |
+| `API-PST-002`, `API-PST-003`, `API-PST-006` | 정정 | `TierResult` 근거 저장소를 `tier_logs`로 표기 → `posts`·`places`와 요청 시 계산값으로 표기 | PST-022~028, PST-046~049, DEC-20260905-011 |
+| 요구사항·API 명세 | 정정 | 데이터 설계 교정에 맞춰 버전 상승 필요 → 엔드포인트·요청·응답 계약은 유지하고 저장소 주석·ERD 시트만 교정해 v1.1.5 유지 | DEC-20260905-011 |
+
 ## 다음 예정
 
 | 대상 | 내용 | 근거 |
@@ -275,7 +298,7 @@
 | DBML `users` | `terms_agreed_at` 추가 — 약관 동의가 Must인데 DBML에 컬럼이 없다 | `USER-006` |
 | ~~DBML `places`~~ | `status` 추가 — **v1.1.4 완료** | `PLC-023` |
 | ~~DBML `reports`~~ | `detail` · `action` · `reviewed_at` 추가 — **v1.1.4 완료** | `SYS-017` |
-| ~~요구사항 `MAP-025`~~ | `sample_post_ids`와 정렬이 같은 `sample_thumbnail_urls` 저장 — **v1.1.5 완료** | DBML 미결정 9 |
+| 요구사항 `MAP-025` | `sample_post_ids`와 정렬이 같은 썸네일 URL 사전 저장 여부를 다시 결정 | 사용자 제공 ERD 미결정 9, DEC-20260905-011 |
 | 요구사항 `SCH-011`, `VST-006` | 최근 검색어·최근 본 장소 저장소 결정 (앱 로컬 / Redis / DB) | DBML 미결정 10 |
 | 요구사항 `RNK-013` | 운영자 지정 장소 — `places.is_curated` | DBML 미결정 11 |
 | 요구사항 `PST-043`, `PLC-023` | 신고 대상 범위에 댓글·사용자를 넣을지 | DBML 미결정 12 |
