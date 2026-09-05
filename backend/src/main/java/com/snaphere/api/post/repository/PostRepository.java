@@ -34,17 +34,23 @@ public interface PostRepository extends JpaRepository<PostEntity, Long> {
      *
      * <p>태그는 ID 로 받는다. 정규화 이름 → ID 변환은 조회 전에 한 번만 하면 되고,
      * 그 이름을 쓴 태그가 없으면 애초에 이 쿼리를 돌릴 필요가 없다 (CMU-030).
+     *
+     * <p><b>시각 파라미터의 null 검사에 cast 를 씌운 이유.</b> {@code :x is null} 은 그 자리에서
+     * 타입을 추론할 근거가 없다. Hibernate 가 Integer·Long 은 {@code setNull(idx, INTEGER)} 로
+     * JDBC 타입까지 실어 보내지만 {@code OffsetDateTime} null 은 타입 없이 나가고, PostgreSQL 은
+     * {@code could not determine data type of parameter $n} 으로 준비 단계에서 거부한다.
+     * H2 는 이를 받아 주므로 테스트로는 잡히지 않는다 — 실제 PostgreSQL 에서만 드러난다.
      */
     @Query("""
             select p from PostEntity p
              where p.status = com.snaphere.api.post.PostStatus.ACTIVE
                and (:areaCode is null or p.areaCode = :areaCode)
                and (:placeId is null or p.placeId = :placeId)
-               and (:createdFrom is null or p.createdAt >= :createdFrom)
+               and (cast(:createdFrom as timestamp) is null or p.createdAt >= :createdFrom)
                and (:tagId is null
                     or exists (select pt.id.postId from PostTagEntity pt
                                 where pt.id.postId = p.postId and pt.id.tagId = :tagId))
-               and (:cursorCreatedAt is null
+               and (cast(:cursorCreatedAt as timestamp) is null
                     or p.createdAt < :cursorCreatedAt
                     or (p.createdAt = :cursorCreatedAt and p.postId < :cursorPostId))
              order by p.createdAt desc, p.postId desc
