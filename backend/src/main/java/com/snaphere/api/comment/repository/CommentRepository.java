@@ -23,13 +23,19 @@ public interface CommentRepository extends JpaRepository<CommentEntity, Long> {
      *
      * <p>커서는 {@code (createdAt, commentId)} 두 키를 함께 본다 — 시각만 쓰면 같은 순간에 달린
      * 댓글이 두 페이지에 나오거나 사라진다.
+     *
+     * <p><b>커서 null 검사에 cast 를 씌운 이유.</b> {@code :x is null} 은 그 자리에서 타입을 추론할
+     * 근거가 없다. Hibernate 가 Integer·Long 은 {@code setNull(idx, INTEGER)} 로 JDBC 타입까지 실어
+     * 보내지만 {@code OffsetDateTime} null 은 타입 없이 나가고, PostgreSQL 은 준비 단계에서
+     * {@code could not determine data type of parameter $n} 으로 거부한다. 첫 페이지(커서 없음)가
+     * 항상 500 이 된다. H2 는 이를 받아 주므로 테스트로는 드러나지 않는다.
      */
     @Query("""
             select c from CommentEntity c
              where c.postId = :postId
                and c.parentId is null
                and c.status = com.snaphere.api.comment.CommentStatus.ACTIVE
-               and (:cursorCreatedAt is null
+               and (cast(:cursorCreatedAt as timestamp) is null
                     or c.createdAt < :cursorCreatedAt
                     or (c.createdAt = :cursorCreatedAt and c.commentId < :cursorCommentId))
              order by c.createdAt desc, c.commentId desc
@@ -45,6 +51,8 @@ public interface CommentRepository extends JpaRepository<CommentEntity, Long> {
      * <p>활성 댓글과 한 쿼리로 합치지 않는다. {@code status = ACTIVE or exists(...)} 로 묶으면
      * PostgreSQL 이 EXISTS 를 해시 서브플랜으로 바꿔 comments 전체를 한 번 훑는다 — 페이지 크기와
      * 무관하게 전체 행 수에 비례한다(20만 행에서 28ms). 상태별로 나누면 둘 다 인덱스로 끝난다(0.4ms).
+     *
+     * <p>커서 null 검사의 {@code cast} 는 {@link #findActiveRoots} 의 설명과 같은 이유다.
      */
     @Query("""
             select c from CommentEntity c
@@ -54,7 +62,7 @@ public interface CommentRepository extends JpaRepository<CommentEntity, Long> {
                and exists (select r.commentId from CommentEntity r
                             where r.parentId = c.commentId
                               and r.status = com.snaphere.api.comment.CommentStatus.ACTIVE)
-               and (:cursorCreatedAt is null
+               and (cast(:cursorCreatedAt as timestamp) is null
                     or c.createdAt < :cursorCreatedAt
                     or (c.createdAt = :cursorCreatedAt and c.commentId < :cursorCommentId))
              order by c.createdAt desc, c.commentId desc
