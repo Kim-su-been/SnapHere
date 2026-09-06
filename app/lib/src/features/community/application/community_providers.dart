@@ -1,21 +1,20 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snap_here/src/features/auth/application/auth_controller.dart';
+import 'package:snap_here/src/features/community/data/api_community_repository.dart';
 import 'package:snap_here/src/features/community/data/fake_community_repository.dart';
 import 'package:snap_here/src/features/community/domain/community_models.dart';
 import 'package:snap_here/src/features/community/domain/community_repository.dart';
 
 /// 인증(`auth_controller.dart`)과 같은 방식으로 더미/실제 구현을 고른다.
-/// API가 준비되면 `ApiCommunityRepository()`를 여기에 연결한다.
 const _useFakeCommunity = bool.fromEnvironment(
   'USE_FAKE_COMMUNITY',
-  defaultValue: kDebugMode,
+  defaultValue: false,
 );
 
 final communityRepositoryProvider = Provider<CommunityRepository>((ref) {
   if (_useFakeCommunity) return FakeCommunityRepository();
-  throw UnimplementedError(
-    'ApiCommunityRepository가 아직 없습니다. '
-    '--dart-define=USE_FAKE_COMMUNITY=true 로 실행하세요.',
+  return ApiCommunityRepository(
+    accessToken: ref.watch(authControllerProvider).value?.accessToken,
   );
 });
 
