@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snap_here/src/features/auth/data/api_auth_repository.dart';
 import 'package:snap_here/src/features/auth/data/fake_auth_repository.dart';
@@ -7,10 +6,7 @@ import 'package:snap_here/src/features/auth/data/session_store.dart';
 import 'package:snap_here/src/features/auth/domain/auth_models.dart';
 import 'package:snap_here/src/features/auth/domain/auth_repository.dart';
 
-const _useFakeAuth = bool.fromEnvironment(
-  'USE_FAKE_AUTH',
-  defaultValue: kDebugMode,
-);
+const _useFakeAuth = bool.fromEnvironment('USE_FAKE_AUTH', defaultValue: false);
 
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => _useFakeAuth ? FakeAuthRepository() : ApiAuthRepository(),
@@ -27,9 +23,7 @@ final sessionStoreProvider = Provider<SessionStore>(
 );
 
 final legalDocumentRepositoryProvider = Provider<LegalDocumentRepository>(
-  (ref) => _useFakeAuth
-      ? FakeLegalDocumentRepository()
-      : ApiLegalDocumentRepository(),
+  (ref) => FakeLegalDocumentRepository(),
 );
 
 final legalDocumentProvider =
@@ -91,7 +85,8 @@ class AuthController extends AsyncNotifier<AuthSession?> {
   Future<void> completeProfile(ProfileSubmission submission) async {
     final current = state.value;
     final accessToken = current?.accessToken;
-    if (accessToken == null) {
+    final refreshToken = current?.refreshToken;
+    if (accessToken == null || refreshToken == null) {
       state = AsyncError(
         const AuthFailure('로그인 세션이 만료되었습니다. 다시 로그인해 주세요.'),
         StackTrace.current,
@@ -102,6 +97,7 @@ class AuthController extends AsyncNotifier<AuthSession?> {
     try {
       final session = await _repository.completeProfile(
         accessToken: accessToken,
+        refreshToken: refreshToken,
         submission: submission,
       );
       await _store.write(session);
@@ -125,7 +121,7 @@ class AuthController extends AsyncNotifier<AuthSession?> {
     state = const AsyncData(null);
   }
 
-  Future<void> deleteAccount() async {
+  Future<void> deleteAccount({required String contentAction}) async {
     final current = state.value;
     final accessToken = current?.accessToken;
     if (accessToken == null) {
@@ -133,7 +129,10 @@ class AuthController extends AsyncNotifier<AuthSession?> {
     }
     state = const AsyncLoading();
     try {
-      await _repository.deleteAccount(accessToken);
+      await _repository.deleteAccount(
+        accessToken,
+        contentAction: contentAction,
+      );
       await ref.read(googleIdentityClientProvider).disconnect();
       await _store.clear();
       state = const AsyncData(null);

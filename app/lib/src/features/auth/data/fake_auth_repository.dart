@@ -28,6 +28,7 @@ class FakeAuthRepository implements AuthRepository {
   @override
   Future<AuthSession> completeProfile({
     required String accessToken,
+    required String refreshToken,
     required ProfileSubmission submission,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 450));
@@ -43,7 +44,7 @@ class FakeAuthRepository implements AuthRepository {
     );
     return AuthSession.authenticated(
       accessToken: accessToken,
-      refreshToken: 'fake-refresh-token-${_registeredUser!.id}',
+      refreshToken: refreshToken,
       user: _registeredUser!,
     );
   }
@@ -68,13 +69,21 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> deleteAccount(String accessToken) async {
+  Future<void> deleteAccount(
+    String accessToken, {
+    required String contentAction,
+  }) async {
     await Future<void>.delayed(const Duration(milliseconds: 300));
     _registeredUser = null;
   }
 }
 
 class FakeLegalDocumentRepository implements LegalDocumentRepository {
+  static const _termsVersion = String.fromEnvironment(
+    'SNAPHERE_TERMS_VERSION',
+    defaultValue: '2026-08-01',
+  );
+
   @override
   Future<LegalDocument> fetch(LegalDocumentType type) async {
     return _documents[type]!;
@@ -84,7 +93,7 @@ class FakeLegalDocumentRepository implements LegalDocumentRepository {
     LegalDocumentType.terms: LegalDocument(
       type: LegalDocumentType.terms,
       title: '서비스 이용약관',
-      version: 'mock-1.0',
+      version: _termsVersion,
       effectiveDate: DateTime(2026, 9, 1),
       sections: const [
         LegalSection(

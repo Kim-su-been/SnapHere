@@ -1,126 +1,156 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:snap_here/src/core/network/api_client.dart';
 import 'package:snap_here/src/features/auth/domain/auth_models.dart';
 import 'package:snap_here/src/features/auth/domain/auth_repository.dart';
 
 class ApiAuthRepository implements AuthRepository {
   ApiAuthRepository({
     http.Client? client,
-    String baseUrl = const String.fromEnvironment('API_BASE_URL'),
-  }) : _client = client ?? http.Client(),
-       _baseUrl = baseUrl.replaceFirst(RegExp(r'/$'), '');
+    String baseUrl = defaultApiBaseUrl,
+    FlutterSecureStorage? storage,
+  }) : _api = ApiClient(client: client, baseUrl: baseUrl),
+       _storage = storage ?? const FlutterSecureStorage();
 
-  final http.Client _client;
-  final String _baseUrl;
+  static const _deviceIdKey = 'snaphere.auth.device-id';
+  final ApiClient _api;
+  final FlutterSecureStorage _storage;
 
   @override
   Future<AuthSession> exchangeGoogleCredential(
     GoogleIdentityCredential credential,
   ) async {
-    final json = await _post('/v1/auth/google', {
-      'idToken': credential.idToken,
-    });
-    return AuthSession.fromJson(json);
+    final data = jsonMap(
+      await _api.post(
+        '/auth/google',
+        body: {
+          'idToken': credential.idToken,
+          'deviceId': await _deviceId(),
+          'platform': Platform.isIOS ? 'IOS' : 'ANDROID',
+        },
+      ),
+    );
+    return _sessionFromAuthResult(data);
   }
 
   @override
   Future<AuthSession> completeProfile({
     required String accessToken,
+    required String refreshToken,
     required ProfileSubmission submission,
   }) async {
-    final json = await _post(
-      '/v1/profile',
-      submission.toJson(),
-      accessToken: accessToken,
+    var data = jsonMap(
+      await _api.post(
+        '/auth/onboarding',
+        accessToken: accessToken,
+        body: {
+          'nickname': submission.nickname,
+          'termsVersion': submission.consents.termsVersion,
+          'locale': 'ko-KR',
+        },
+      ),
     );
-    return AuthSession.fromJson(json);
+    if (submission.bio != null) {
+      final updated = jsonMap(
+        await _api.patch(
+          '/me',
+          accessToken: accessToken,
+          body: {'bio': submission.bio},
+        ),
+      );
+      final profile = jsonMap(updated['profile']);
+      final user = jsonMap(profile['user']);
+      data = {...user, 'email': updated['email'] ?? data['email']};
+    }
+    return AuthSession.authenticated(
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      user: _user(data, needsProfileSetup: false),
+    );
   }
 
   @override
   Future<AuthSession> refreshSession(String refreshToken) async {
-    final json = await _post('/v1/auth/refresh', {
-      'refreshToken': refreshToken,
-    });
-    return AuthSession.fromJson(json);
+    final tokens = jsonMap(
+      await _api.post(
+        '/auth/refresh',
+        body: {'refreshToken': refreshToken, 'deviceId': await _deviceId()},
+      ),
+    );
+    final accessToken = tokens['accessToken']! as String;
+    final me = jsonMap(await _api.get('/me', accessToken: accessToken));
+    final profile = jsonMap(me['profile']);
+    final user = jsonMap(profile['user']);
+    return AuthSession.authenticated(
+      accessToken: accessToken,
+      refreshToken: tokens['refreshToken']! as String,
+      user: AuthUser(
+        id: user['userId']! as String,
+        email: me['email'] as String? ?? '',
+        nickname: user['nickname'] as String?,
+        photoUrl: user['profileImageUrl'] as String?,
+        bio: user['bio'] as String?,
+        needsProfileSetup: false,
+      ),
+    );
   }
 
   @override
-  Future<void> signOut(String accessToken) async {
-    await _post('/v1/auth/logout', const {}, accessToken: accessToken);
-  }
+  Future<void> signOut(String accessToken) =>
+      _api.post('/auth/logout', accessToken: accessToken);
 
   @override
-  Future<void> deleteAccount(String accessToken) async {
-    await _delete('/v1/account', accessToken: accessToken);
+  Future<void> deleteAccount(
+    String accessToken, {
+    required String contentAction,
+  }) => _api.post(
+    '/me/deletion',
+    accessToken: accessToken,
+    body: {'contentAction': contentAction},
+  );
+
+  AuthSession _sessionFromAuthResult(Map<String, Object?> data) {
+    final tokens = jsonMap(data['tokens']);
+    return AuthSession.authenticated(
+      accessToken: tokens['accessToken']! as String,
+      refreshToken: tokens['refreshToken']! as String,
+      user: _user(
+        jsonMap(data['user']),
+        needsProfileSetup: data['onboardingRequired'] as bool? ?? false,
+      ),
+    );
   }
 
-  Future<Map<String, Object?>> _post(
-    String path,
-    Map<String, Object?> body, {
-    String? accessToken,
-  }) async {
-    _ensureConfigured();
-    final response = await _client
-        .post(
-          Uri.parse('$_baseUrl$path'),
-          headers: {
-            'content-type': 'application/json',
-            'accept': 'application/json',
-            if (accessToken != null) 'authorization': 'Bearer $accessToken',
-          },
-          body: jsonEncode(body),
-        )
-        .timeout(const Duration(seconds: 15));
-    return _decodeResponse(response);
-  }
+  AuthUser _user(
+    Map<String, Object?> json, {
+    required bool needsProfileSetup,
+  }) => AuthUser(
+    id: json['userId']! as String,
+    email: json['email'] as String? ?? '',
+    nickname: json['nickname'] as String?,
+    photoUrl: json['profileImageUrl'] as String?,
+    needsProfileSetup: needsProfileSetup,
+  );
 
-  Future<Map<String, Object?>> _delete(
-    String path, {
-    required String accessToken,
-  }) async {
-    _ensureConfigured();
-    final response = await _client
-        .delete(
-          Uri.parse('$_baseUrl$path'),
-          headers: {
-            'accept': 'application/json',
-            'authorization': 'Bearer $accessToken',
-          },
-        )
-        .timeout(const Duration(seconds: 15));
-    return _decodeResponse(response);
-  }
-
-  Map<String, Object?> _decodeResponse(http.Response response) {
-    Map<String, Object?> body = const {};
-    if (response.body.isNotEmpty) {
-      try {
-        body = Map<String, Object?>.from(jsonDecode(response.body) as Map);
-      } on FormatException {
-        throw const AuthFailure('서버 응답 형식이 올바르지 않습니다.');
-      }
-    }
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw AuthFailure(
-        body['message'] as String? ??
-            '요청을 처리하지 못했습니다. (${response.statusCode})',
-      );
-    }
-    return body;
-  }
-
-  void _ensureConfigured() {
-    if (_baseUrl.isEmpty) {
-      throw const AuthFailure('API_BASE_URL이 설정되지 않았습니다.');
-    }
+  Future<String> _deviceId() async {
+    final saved = await _storage.read(key: _deviceIdKey);
+    if (saved != null && saved.isNotEmpty) return saved;
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    final generated = 'flutter-${base64Url.encode(bytes).replaceAll('=', '')}';
+    await _storage.write(key: _deviceIdKey, value: generated);
+    return generated;
   }
 }
 
 class ApiLegalDocumentRepository implements LegalDocumentRepository {
   ApiLegalDocumentRepository({
     http.Client? client,
-    String baseUrl = const String.fromEnvironment('API_BASE_URL'),
+    String baseUrl = defaultApiBaseUrl,
   }) : _client = client ?? http.Client(),
        _baseUrl = baseUrl.replaceFirst(RegExp(r'/$'), '');
 
@@ -129,38 +159,30 @@ class ApiLegalDocumentRepository implements LegalDocumentRepository {
 
   @override
   Future<LegalDocument> fetch(LegalDocumentType type) async {
-    if (_baseUrl.isEmpty) {
-      throw const AuthFailure('API_BASE_URL이 설정되지 않았습니다.');
-    }
-    final response = await _client
-        .get(
-          Uri.parse('$_baseUrl/v1/legal/${type.path}'),
-          headers: const {'accept': 'application/json'},
-        )
-        .timeout(const Duration(seconds: 15));
+    final response = await _client.get(
+      Uri.parse('$_baseUrl/v1/legal/${type.path}'),
+      headers: const {'accept': 'application/json'},
+    );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw AuthFailure('약관 문서를 불러오지 못했습니다. (${response.statusCode})');
     }
-    try {
-      final json = Map<String, Object?>.from(jsonDecode(response.body) as Map);
-      final sections = (json['sections']! as List)
-          .map((section) => Map<String, Object?>.from(section as Map))
+    final json = Map<String, Object?>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)) as Map,
+    );
+    return LegalDocument(
+      type: type,
+      title: json['title']! as String,
+      version: json['version']! as String,
+      effectiveDate: DateTime.parse(json['effectiveDate']! as String),
+      sections: (json['sections']! as List)
+          .map((value) => Map<String, Object?>.from(value as Map))
           .map(
             (section) => LegalSection(
               heading: section['heading']! as String,
               body: section['body']! as String,
             ),
           )
-          .toList(growable: false);
-      return LegalDocument(
-        type: type,
-        title: json['title']! as String,
-        version: json['version']! as String,
-        effectiveDate: DateTime.parse(json['effectiveDate']! as String),
-        sections: sections,
-      );
-    } on Object {
-      throw const AuthFailure('약관 문서 응답 형식이 올바르지 않습니다.');
-    }
+          .toList(growable: false),
+    );
   }
 }
