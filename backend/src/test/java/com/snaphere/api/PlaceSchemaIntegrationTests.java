@@ -11,6 +11,12 @@ import com.snaphere.api.ranking.RankingPlaceType;
 import com.snaphere.api.ranking.RankingPeriod;
 import com.snaphere.api.ranking.RankingRepository;
 import com.snaphere.api.ranking.RankingScope;
+import com.snaphere.api.search.SearchDtos;
+import com.snaphere.api.search.RecentSearchStore;
+import com.snaphere.api.search.SearchRepository;
+import com.snaphere.api.search.SearchService;
+import com.snaphere.api.search.SearchType;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +31,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
+import java.util.List;
+import java.util.Optional;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 @SpringBootTest(properties = {
         "snaphere.jobs.enabled=false",
@@ -83,6 +93,10 @@ class PlaceSchemaIntegrationTests {
     @Autowired RankingAggregationService rankingAggregation;
     @Autowired RankingRepository rankingRepository;
     @Autowired com.snaphere.api.place.PlaceRepository placeJdbcRepository;
+    @Autowired SearchService searchService;
+    @Autowired SearchRepository searchRepository;
+    @Autowired RecentSearchStore recentSearchStore;
+    @Autowired StringRedisTemplate redis;
 
     @Test
     void 시도_코드는_비연속_17개이고_고정된_DB_버전과_PostGIS가_활성화된다() {
@@ -97,6 +111,75 @@ class PlaceSchemaIntegrationTests {
         assertThat(jdbc.sql("SELECT column_default FROM information_schema.columns "
                         + "WHERE table_name = 'users' AND column_name = 'push_like_enabled'")
                 .query(String.class).single()).isEqualTo("true");
+        assertThat(jdbc.sql("SELECT to_regclass('public.search_logs') IS NOT NULL")
+                .query(Boolean.class).single()).isTrue();
+        assertThat(jdbc.sql("SELECT indexname FROM pg_indexes WHERE schemaname='public'")
+                .query(String.class).list()).contains("gin_places_addr1_search",
+                        "gin_posts_content_search", "idx_users_nickname_search",
+                        "idx_tags_normalized_search");
+    }
+
+    @Test
+    void 검색_실행계획이_부분어와_접두어_인덱스를_사용한다() {
+        UUID userId = UUID.randomUUID();
+        jdbc.sql("""
+                insert into users(id,google_subject,email,nickname,status,role,created_at,updated_at)
+                values (:id,:subject,:email,'계획','ACTIVE','USER',now(),now())
+                """).param("id", userId).param("subject", "plan-" + userId)
+                .param("email", "plan-" + userId + "@example.com").update();
+        long placeId = jdbc.sql("""
+                insert into places(place_type,title,normalized_title,addr1,lat,lng,verify_radius_m,area_code)
+                values ('OFFICIAL','실행계획장소','실행계획장소','서울 uniquejongno 주소',37.57,126.98,500,1)
+                returning place_id
+                """).query(Long.class).single();
+        jdbc.sql("""
+                insert into places(place_type,title,normalized_title,addr1,lat,lng,verify_radius_m,area_code)
+                select 'OFFICIAL','일반장소 ' || n,'일반장소 ' || n,'검색과 무관한 주소 ' || n,
+                       37.0,127.0,500,1
+                from generate_series(1,2000) n
+                """).update();
+        jdbc.sql("""
+                insert into posts(user_id,place_id,area_code,content,tier,status,created_at,updated_at)
+                select :user,:place,1,
+                       case when n=1 then 'uniquenight 검색' else '검색과 무관한 게시글 ' || n end,
+                       'HIGH','ACTIVE',now(),now()
+                from generate_series(1,2000) n
+                """).param("user", userId).param("place", placeId).update();
+        jdbc.sql("analyze places").update();
+        jdbc.sql("analyze posts").update();
+        jdbc.sql("select gin_clean_pending_list('gin_places_addr1_search')")
+                .query(Long.class).single();
+        jdbc.sql("select gin_clean_pending_list('gin_posts_content_search')")
+                .query(Long.class).single();
+        jdbc.sql("set local enable_seqscan=off").update();
+
+        String placePlan = String.join("\n", jdbc.sql("""
+                explain (costs off)
+                select place_id from places
+                where status='ACTIVE' and lower(coalesce(addr1,'')) like '%uniquejongno%'
+                """).query(String.class).list());
+        String postPlan = String.join("\n", jdbc.sql("""
+                explain (costs off)
+                select post_id from posts
+                where status='ACTIVE' and lower(coalesce(content,'')) like '%uniquenight%'
+                """).query(String.class).list());
+        String userPlan = String.join("\n", jdbc.sql("""
+                explain (costs off)
+                select id from users
+                where status='ACTIVE' and nickname is not null and lower(nickname) like '여행%'
+                """).query(String.class).list());
+        String tagPlan = String.join("\n", jdbc.sql("""
+                explain (costs off)
+                select tag_id from tags where normalized_name like '드라마%'
+                """).query(String.class).list());
+
+        String placeIndexDefinition = jdbc.sql(
+                "select pg_get_indexdef('gin_places_addr1_search'::regclass)")
+                .query(String.class).single();
+        assertThat(placePlan).as(placeIndexDefinition).contains("gin_places_addr1_search");
+        assertThat(postPlan).contains("gin_posts_content_search");
+        assertThat(userPlan).contains("idx_users_nickname_search");
+        assertThat(tagPlan).contains("idx_tags_normalized_search");
     }
 
     @Test
@@ -203,6 +286,118 @@ class PlaceSchemaIntegrationTests {
         assertThat(rankingRepository.curated(31, null, null, 10, null))
                 .extracting(row -> row.place().placeId())
                 .contains(com.snaphere.api.auth.ExternalIds.place(official));
+    }
+
+    @Test
+    void 통합검색이_네_타입_부분검색과_지역필터_최근검색을_지원한다() {
+        UUID userId = UUID.randomUUID();
+        jdbc.sql("""
+                INSERT INTO users(id,google_subject,email,nickname,status,role,created_at,updated_at)
+                VALUES (:id,:subject,:email,'여행콩','ACTIVE','USER',now(),now())
+                """).param("id", userId).param("subject", "search-" + userId)
+                .param("email", "search-" + userId + "@example.com").update();
+        long seoulPlace = jdbc.sql("""
+                INSERT INTO places(place_type,title,normalized_title,addr1,lat,lng,verify_radius_m,area_code)
+                VALUES ('OFFICIAL','경복궁','경복궁','서울 종로구 사직로',37.57,126.98,500,1)
+                RETURNING place_id
+                """).query(Long.class).single();
+        long busanPlace = jdbc.sql("""
+                INSERT INTO places(place_type,title,normalized_title,addr1,lat,lng,verify_radius_m,area_code)
+                VALUES ('OFFICIAL','해운대','해운대','부산 해운대구',35.16,129.16,500,6)
+                RETURNING place_id
+                """).query(Long.class).single();
+        jdbc.sql("""
+                INSERT INTO places(place_type,title,normalized_title,addr1,lat,lng,verify_radius_m,area_code)
+                VALUES ('OFFICIAL','경복 별관','경복 별관','서울 종로구',37.56,126.97,500,1)
+                """).update();
+        long postId = jdbc.sql("""
+                INSERT INTO posts(user_id,place_id,area_code,content,tier,status,created_at,updated_at)
+                VALUES (:user,:place,1,'서울 궁궐 야경이 멋져요','HIGH','ACTIVE',now(),now())
+                RETURNING post_id
+                """).param("user", userId).param("place", seoulPlace).query(Long.class).single();
+        jdbc.sql("""
+                INSERT INTO post_images(post_id,image_key,thumbnail_url,sort_order)
+                VALUES (:post,'posts/search.jpg','https://cdn.example/search.jpg',1)
+                """).param("post", postId).update();
+        long tagId = jdbc.sql("""
+                INSERT INTO tags(name,normalized_name,usage_count) VALUES ('드라마촬영지','드라마촬영지',5)
+                RETURNING tag_id
+                """).query(Long.class).single();
+        jdbc.sql("INSERT INTO post_tags(post_id,tag_id) VALUES (:post,:tag)")
+                .param("post", postId).param("tag", tagId).update();
+
+        SearchDtos.SearchResult placeResult = searchService.search("복궁", List.of(SearchType.PLACE),
+                null, null, 5, Optional.of(userId));
+        assertThat(placeResult.places().items()).extracting(item -> item.title())
+                .containsExactly("경복궁");
+
+        SearchDtos.SearchResult postResult = searchService.search("야경", List.of(SearchType.POST),
+                null, null, 5, Optional.of(userId));
+        assertThat(postResult.posts().items()).hasSize(1);
+
+        SearchDtos.SearchResult userResult = searchService.search("여행", List.of(SearchType.USER),
+                1, null, 5, Optional.of(userId));
+        assertThat(userResult.users().items()).extracting(item -> item.nickname())
+                .containsExactly("여행콩");
+
+        SearchDtos.SearchResult tagResult = searchService.search("#드라", List.of(SearchType.TAG),
+                1, null, 5, Optional.of(userId));
+        assertThat(tagResult.tags().items()).extracting(item -> item.name())
+                .containsExactly("드라마촬영지");
+
+        SearchDtos.SearchResult regionResult = searchService.search("서울특별시",
+                List.of(SearchType.PLACE), 6, null, 10, Optional.of(userId));
+        assertThat(regionResult.matchedRegion().areaCode()).isEqualTo(1);
+        assertThat(regionResult.places().items()).extracting(item -> item.title())
+                .contains("경복궁").doesNotContain("해운대");
+
+        SearchDtos.SearchResult firstPage = searchService.search("경복", List.of(SearchType.PLACE),
+                null, null, 1, Optional.empty());
+        SearchDtos.SearchResult secondPage = searchService.search("경복", List.of(SearchType.PLACE),
+                null, firstPage.places().nextCursor(), 1, Optional.empty());
+        assertThat(firstPage.places().hasNext()).isTrue();
+        assertThat(firstPage.places().items()).extracting(item -> item.title())
+                .doesNotContainAnyElementsOf(secondPage.places().items().stream()
+                        .map(item -> item.title()).toList());
+
+        assertThat(searchService.recent(userId)).extracting(SearchDtos.RecentSearch::keyword)
+                .containsExactly("서울특별시", "#드라", "여행", "야경", "복궁");
+        assertThat(redis.getExpire("search:recent:order:" + userId)).isBetween(1L, 30L * 24 * 60 * 60);
+    }
+
+    @Test
+    void 최근검색은_동일검색어를_최신화하고_사용자별_20개만_보관한다() {
+        UUID userId = UUID.randomUUID();
+        for (int i = 0; i < 21; i++) {
+            recentSearchStore.record(userId, "검색" + i, "검색" + i);
+        }
+        recentSearchStore.record(userId, "검색5", "검색어 5 최신");
+
+        List<SearchDtos.RecentSearch> items = recentSearchStore.recent(userId);
+        assertThat(items).hasSize(20);
+        assertThat(items.getFirst().keyword()).isEqualTo("검색어 5 최신");
+        assertThat(items).extracting(SearchDtos.RecentSearch::keyword)
+                .doesNotContain("검색0", "검색5");
+    }
+
+    @Test
+    void 인기검색은_최근_7일만_집계하고_검색로그는_30일_뒤_정리한다() {
+        redis.delete("search:popular:all:10");
+        searchService.search("고유검색어", List.of(SearchType.PLACE), null, null, 5, Optional.empty());
+        searchService.search("고유검색어", List.of(SearchType.PLACE), null, null, 5, Optional.empty());
+        searchService.search("고유검색어", List.of(SearchType.PLACE), null, null, 5, Optional.empty());
+        jdbc.sql("insert into search_logs(keyword,searched_at) values('오래된검색어',now()-interval '31 days')")
+                .update();
+
+        assertThat(searchService.popular(null, 10)).first()
+                .satisfies(item -> {
+                    assertThat(item.keyword()).isEqualTo("고유검색어");
+                    assertThat(item.searchCount()).isEqualTo(3);
+                });
+        assertThat(searchRepository.purgeBefore(OffsetDateTime.now(ZoneOffset.UTC).minusDays(30)))
+                .isEqualTo(1);
+        assertThat(jdbc.sql("select count(*) from search_logs where keyword='오래된검색어'")
+                .query(Long.class).single()).isZero();
     }
 
     private long insertRankingPost(UUID userId, long placeId, String tier, int likes, int comments) {

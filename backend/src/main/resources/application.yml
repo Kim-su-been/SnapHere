@@ -47,6 +47,7 @@ snaphere:
     ranking-delay: ${RANKING_DELAY:PT10M}
     follow-counter-reconcile-cron: ${FOLLOW_COUNTER_RECONCILE_CRON:0 10 5 * * *}
     account-purge-cron: ${ACCOUNT_PURGE_CRON:0 0 5 * * *}
+    search-log-purge-cron: ${SEARCH_LOG_PURGE_CRON:0 20 5 * * *}
   paging:
     default-size: 20               # SYS-003
     max-size: 50

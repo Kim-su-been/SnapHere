@@ -150,10 +150,10 @@
 
 | API ID | API 이름 | Method | Path | 인증 | 중요도 | 설명 | 요청 스키마 | 응답 스키마 | 성공 | 주요 에러 | 페이징 | 캐시·멱등 | 관련 요구사항 | 관련 테이블·비고 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| API-SCH-001 | 통합 검색 | GET | /api/v1/search | Bearer(optional) | Must | 장소·게시글·사용자·태그를 통합 검색하고 타입별 상위를 반환한다. | - | SearchResult | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | 타입별 cursor | - | SCH-001, SCH-003~009 | places, posts, users, tags, search_logs |
-| API-SCH-002 | 인기 검색어 | GET | /api/v1/search/popular | Public | Could | 검색 로그 집계 기반 인기 검색어를 반환한다. | - | PopularKeyword[] | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | - | 10m | SCH-002, SCH-010 | search_logs |
-| API-SCH-003 | 최근 검색어 | GET | /api/v1/me/recent-searches | Bearer | Could | 사용자의 최근 검색어를 조회한다. | - | RecentSearch[] | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | - | - | SCH-002, SCH-011 | search_logs / ※ 최근 검색어 저장소 미정 — 앱 로컬·Redis·별도 테이블 (DBML 미결정 10) |
-| API-SCH-004 | 최근 검색어 삭제 | DELETE | /api/v1/me/recent-searches | Bearer | Could | 최근 검색어 한 건 또는 전체를 삭제한다. | - | Empty | 204 | COMMON_400, AUTH_REQUIRED, COMMON_500 | - | - | SCH-011 | search_logs |
+| API-SCH-001 | 통합 검색 | GET | /api/v1/search | Bearer(optional) | Must | 장소·게시글·사용자·태그를 통합 검색하고 타입별 상위를 반환한다. | - | SearchResult | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | 단일 types 지정 시 불투명 keyset cursor | - | SCH-001, SCH-003~009 | places, posts, users, tags, search_logs(커서 없는 첫 페이지 검색만 기록) |
+| API-SCH-002 | 인기 검색어 | GET | /api/v1/search/popular | Public | Could | 최근 7일 검색 로그 집계 기반 인기 검색어를 반환한다. | - | PopularKeyword[] | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | - | 10m | SCH-002, SCH-010 | search_logs(30일 보존), Redis(10분 캐시) |
+| API-SCH-003 | 최근 검색어 | GET | /api/v1/me/recent-searches | Bearer | Could | 사용자의 최근 검색어를 조회한다. | - | RecentSearch[] | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | - | - | SCH-002, SCH-011 | Redis(사용자별 최대 20개, TTL 30일, 동일 검색어 최신화) |
+| API-SCH-004 | 최근 검색어 삭제 | DELETE | /api/v1/me/recent-searches | Bearer | Could | 최근 검색어 한 건 또는 전체를 삭제한다. | - | Empty | 204 | COMMON_400, AUTH_REQUIRED, COMMON_500 | - | - | SCH-011 | Redis(검색어 1건 또는 전체 삭제) |
 
 ### 관리자·운영
 
@@ -753,9 +753,9 @@
 | Method | Path | 위치 | 파라미터 | 타입 | 필수 | 제약·기본값 | 예시 | 설명 |
 |---|---|---|---|---|---|---|---|---|
 | GET | /api/v1/search | query | q | string | Y | 1~100자 | 경복궁 | 검색어 |
-| GET | /api/v1/search | query | types | array<enum> | N | PLACE\|POST\|USER\|TAG | PLACE,POST | 검색 대상 |
-| GET | /api/v1/search | query | areaCode | integer | N | 필터 | 1 | 지역 필터 |
-| GET | /api/v1/search | query | cursor | string | N | 더보기 타입의 커서 | eyJ... | 페이지 커서 |
+| GET | /api/v1/search | query | types | array<enum> | N | PLACE\|POST\|USER\|TAG, cursor 사용 시 정확히 1개 | PLACE,POST | 검색 대상 |
+| GET | /api/v1/search | query | areaCode | integer | N | 지역명과 정확히 일치하면 해당 지역 코드가 우선 | 1 | 지역 필터 |
+| GET | /api/v1/search | query | cursor | string | N | 단일 검색 타입용 불투명 keyset cursor | eyJ... | 페이지 커서 |
 | GET | /api/v1/search | query | size | integer | N | 타입별 기본 5, 더보기 최대 50 | 5 | 결과 수 |
 
 ### API-SCH-002
@@ -763,7 +763,7 @@
 | Method | Path | 위치 | 파라미터 | 타입 | 필수 | 제약·기본값 | 예시 | 설명 |
 |---|---|---|---|---|---|---|---|---|
 | GET | /api/v1/search/popular | query | areaCode | integer | N | - | 1 | 지역 |
-| GET | /api/v1/search/popular | query | limit | integer | N | 기본 10 | 10 | 개수 |
+| GET | /api/v1/search/popular | query | limit | integer | N | 기본 10, 최대 50 | 10 | 개수 |
 
 ### API-SCH-004
 
@@ -1450,9 +1450,9 @@
 
 | 필드 경로 | 타입 | 필수 | 설명 | 예시 | 원천 |
 |---|---|---|---|---|---|
-| searchLogId | uuid | Y | 검색 로그 ID | sch_01 | search_logs |
-| keyword | string | Y | 검색어 | 경복궁 | search_logs |
-| searchedAt | datetime | Y | 검색 시각 | 예: 2026-09-01T09:00:00+09:00 | search_logs |
+| searchLogId | uuid | Y | 검색 로그 ID | 550e8400-e29b-41d4-a716-446655440000 | Redis |
+| keyword | string | Y | 검색어 | 경복궁 | Redis |
+| searchedAt | datetime | Y | 검색 시각 | 예: 2026-09-01T09:00:00+09:00 | Redis |
 
 ### SyncLog
 
@@ -1925,8 +1925,8 @@
 | SCH-007 | 태그 검색 | 회원·비회원 | Should | API 직접 | API-CMU-013, API-SCH-001 |  | 엔드포인트 계약에 직접 반영 |
 | SCH-008 | 지역 필터 전환 | 회원·비회원 | Should | API 직접 | API-SCH-001 |  | SearchResult.matchedRegion으로 필터 전환 |
 | SCH-009 | 홈 진입 시 필터 프리필 | 회원·비회원 | Must | API 직접 | API-SCH-001 |  | 엔드포인트 계약에 직접 반영 |
-| SCH-010 | 인기 검색어 | 회원·비회원 | Could | API 직접 | API-SCH-002 |  | 엔드포인트 계약에 직접 반영 |
-| SCH-011 | 최근 검색어 | 회원 | Could | API 직접 | API-SCH-003, API-SCH-004 |  | 엔드포인트 계약에 직접 반영 |
+| SCH-010 | 인기 검색어 | 회원·비회원 | Could | API 직접 | API-SCH-002 |  | 최근 7일 검색 로그 집계, Redis 10분 캐시, 로그 30일 보존 |
+| SCH-011 | 최근 검색어 | 회원 | Could | API 직접 | API-SCH-003, API-SCH-004 |  | Redis 사용자별 최대 20개, TTL 30일; 동일 검색어는 최신 순서로 갱신 |
 
 ### 공통 · 운영
 
