@@ -223,6 +223,10 @@ __marimo__/
 # Repository-wide local files and generated artifacts
 # -----------------------------------------------------------------------------
 
+# Backend IDE and local Gradle build outputs
+backend/bin/
+backend/.gradle-user-home/
+
 # Operating system files
 .DS_Store
 Thumbs.db
