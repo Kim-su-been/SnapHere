@@ -12,5 +12,6 @@ import java.util.UUID;
  */
 public interface TierDecisionLogger {
 
-    void record(Long postId, UUID userId, long placeId, Long eventId, TierDecision decision);
+    void record(Long postId, UUID userId, long placeId, Long eventId,
+                TierInput input, TierDecision decision);
 }

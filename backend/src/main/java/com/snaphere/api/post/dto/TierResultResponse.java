@@ -2,6 +2,7 @@ package com.snaphere.api.post.dto;
 
 import com.snaphere.api.post.tier.TierDecision;
 import com.snaphere.api.post.tier.TierImprovementHint;
+import com.snaphere.api.post.tier.TrustTier;
 
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,13 @@ public record TierResultResponse(
         Map<String, Object> reasonParams,
         List<String> improvementHints
 ) {
+    public static TierResultResponse tierOnly(TrustTier tier) {
+        return new TierResultResponse(
+                tier.name(), tier.messageKey(), tier.rankingWeight(),
+                tier.eligibleForBadge(), tier.countsForVisit(), tier.countsForHeatmap(),
+                null, 0, false, null, null, Map.of(), List.of());
+    }
+
     public static TierResultResponse from(TierDecision d) {
         Map<String, Object> params = new java.util.LinkedHashMap<>();
         params.put("radiusM", d.appliedRadiusM());

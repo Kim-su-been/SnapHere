@@ -72,7 +72,7 @@ public class TierPreviewService {
         TierDecision decision = TierPolicy.decide(input, TierThresholds.DEFAULT);
 
         decisionLogger.record(null, userId, place.placeId(),
-                event == null ? null : event.eventId(), decision);
+                event == null ? null : event.eventId(), input, decision);
         return decision;
     }
 

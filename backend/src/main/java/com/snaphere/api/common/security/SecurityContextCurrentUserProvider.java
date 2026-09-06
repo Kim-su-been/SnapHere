@@ -8,6 +8,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+
 /**
  * JwtAuthenticationFilter 가 SecurityContext 에 넣어 둔 {@link AuthPrincipal} 을 읽는다. (AUTH-011)
  *
@@ -19,12 +21,17 @@ public class SecurityContextCurrentUserProvider implements CurrentUserProvider {
 
     @Override
     public CurrentUser require(HttpServletRequest request) {
+        return optional(request).orElseThrow(() -> new ApiException(ErrorCode.AUTH_REQUIRED));
+    }
+
+    @Override
+    public Optional<CurrentUser> optional(HttpServletRequest request) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null
                 || !authentication.isAuthenticated()
                 || !(authentication.getPrincipal() instanceof AuthPrincipal principal)) {
-            throw new ApiException(ErrorCode.AUTH_REQUIRED);
+            return Optional.empty();
         }
-        return new CurrentUser(principal.userId());
+        return Optional.of(new CurrentUser(principal.userId()));
     }
 }
