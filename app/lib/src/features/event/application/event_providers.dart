@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snap_here/src/features/auth/application/auth_controller.dart';
 import 'package:snap_here/src/features/event/data/api_event_repository.dart';
@@ -8,7 +7,7 @@ import 'package:snap_here/src/features/event/domain/event_repository.dart';
 
 const _useFakeEvents = bool.fromEnvironment(
   'USE_FAKE_EVENTS',
-  defaultValue: kDebugMode,
+  defaultValue: false,
 );
 
 final eventRepositoryProvider = Provider<EventRepository>((ref) {

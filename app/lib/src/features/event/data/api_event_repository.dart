@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:snap_here/src/core/network/api_client.dart';
 import 'package:snap_here/src/features/event/domain/event_models.dart';
 import 'package:snap_here/src/features/event/domain/event_repository.dart';
 
@@ -8,7 +9,7 @@ class ApiEventRepository implements EventRepository {
   ApiEventRepository({
     this.accessToken,
     http.Client? client,
-    String baseUrl = const String.fromEnvironment('API_BASE_URL'),
+    String baseUrl = defaultApiBaseUrl,
   }) : _client = client ?? http.Client(),
        _baseUrl = baseUrl.replaceFirst(RegExp(r'/$'), '');
 
@@ -82,7 +83,7 @@ class ApiEventRepository implements EventRepository {
         .timeout(const Duration(seconds: 15));
     Object? decoded;
     try {
-      decoded = jsonDecode(response.body);
+      decoded = jsonDecode(utf8.decode(response.bodyBytes));
     } on FormatException {
       throw const EventFailure('서버 응답 형식이 올바르지 않습니다.');
     }
