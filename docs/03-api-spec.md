@@ -63,10 +63,10 @@
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | API-PST-001 | 업로드 주소 발급 | POST | /api/v1/media/presigned-urls | Bearer | Must | 게시글(1~4개) 또는 프로필(1개) 이미지의 S3 Presigned URL을 발급한다. jpeg·png·heic·webp, 장당 10MB 이하. | PresignRequest | UploadUrl[] | 201 | MEDIA_COUNT_INVALID, MEDIA_TOO_LARGE, MEDIA_TYPE_UNSUPPORTED, COMMON_429 | - | URL 5분 | USER-004, PST-013~015, SYS-020 | S3, post_images<br>※ 클라이언트가 반환 URL로 S3에 직접 PUT |
 | API-PST-002 | 신뢰도 미리보기 | POST | /api/v1/posts/tier-preview | Bearer | Should | 업로드 전 장소·촬영 정보로 예상 신뢰도와 판정 이유를 계산한다. | TierPreviewRequest | TierResult | 201 | PLACE_NOT_FOUND, POST_INVALID_TAKEN_AT, COMMON_422 | - | - | PST-022~028, PST-048~049 | places, events<br>※ 최종 등급은 게시 생성 시 서버가 다시 계산 |
-| API-PST-003 | 게시글 생성 | POST | /api/v1/posts | Bearer | Must | 사진·장소·캡션·태그를 검증하고 게시글을 생성한다. | CreatePostRequest | CreatePostResult | 201 | POST_IMAGE_REQUIRED, POST_PLACE_REQUIRED, POST_TAG_REQUIRED, POST_DAILY_LIMIT, POST_PLACE_DAILY_LIMIT, POST_DUPLICATE_IMAGE, POST_UPLOAD_SUSPENDED, COMMON_422 | - | Idempotency-Key 필수 | PST-001~006, PST-008~011, PST-016~032, EVT-016~023, VST-001~002, BDG-005~006 | posts, post_images, post_tags, tier_logs, visits, user_badges<br>※ eventId가 있으면 고정 태그를 서버가 재주입; 반경 밖이어도 게시 성공·badgeAwarded=false |
+| API-PST-003 | 게시글 생성 | POST | /api/v1/posts | Bearer | Must | 사진·장소·캡션·태그를 검증하고 게시글을 생성한다. | CreatePostRequest | CreatePostResult | 201 | POST_IMAGE_REQUIRED, POST_PLACE_REQUIRED, POST_TAG_REQUIRED, POST_DAILY_LIMIT, POST_PLACE_DAILY_LIMIT, POST_DUPLICATE_IMAGE, POST_UPLOAD_SUSPENDED, COMMON_422 | - | Idempotency-Key 필수 | PST-001~006, PST-008~011, PST-016~032, EVT-016~023, VST-001~002, BDG-005~006 | posts, post_images, post_tags, visits, user_badges<br>※ eventId가 있으면 고정 태그를 서버가 재주입; 반경 밖이어도 게시 성공·badgeAwarded=false |
 | API-PST-004 | 게시글 목록 | GET | /api/v1/posts | Bearer(optional) | Must | 지역·장소·태그·기간으로 공개 게시글을 조회한다. | - | CursorPage<PostSummary> | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | cursor | - | PST-021, PST-034, SYS-018 | posts, post_images, post_tags |
 | API-PST-005 | 인기 게시글 | GET | /api/v1/posts/popular | Bearer(optional) | Must | 지도·탐색용 기간별 인기 게시글을 사전 집계(post_rankings)에서 조회한다. 커뮤니티 인기 탭은 API-CMU-001을 쓴다. | - | CursorPage<PostSummary> | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | cursor | 집계 테이블 조회, 요청 시 계산 금지 | PST-035, CMU-008 | post_rankings, posts, post_images / ※ 지도·탐색 진입점. 커뮤니티 인기 탭과 역할 분리(B-2) |
-| API-PST-006 | 게시글 상세 | GET | /api/v1/posts/{postId} | Bearer(optional) | Must | 사진·캡션·태그·장소·작성자·신뢰도 근거를 조회한다. | - | PostDetail | 200 | POST_NOT_FOUND, POST_NOT_VISIBLE, COMMON_500 | - | 공개 60s; 조회수 24h 중복 제거 | PST-033, PST-042, PST-046~047, SYS-010 | posts, post_images, post_tags, users, places, tier_logs |
+| API-PST-006 | 게시글 상세 | GET | /api/v1/posts/{postId} | Bearer(optional) | Must | 사진·캡션·태그·장소·작성자·신뢰도 근거를 조회한다. | - | PostDetail | 200 | POST_NOT_FOUND, POST_NOT_VISIBLE, COMMON_500 | - | 공개 60s; 조회수 24h 중복 제거 | PST-033, PST-042, PST-046~047, SYS-010 | posts, post_images, post_tags, users, places |
 | API-PST-007 | 게시글 수정 | PATCH | /api/v1/posts/{postId} | Bearer | Should | 작성자가 캡션·태그·사진 순서만 수정한다. | UpdatePostRequest | PostDetail | 200 | POST_NOT_AUTHOR, POST_NOT_FOUND, POST_TAG_REQUIRED, COMMON_422 | - | - | AUTH-013, PST-036~037, CMU-032 | posts, post_images, post_tags<br>※ placeId, lat/lng, tier, source는 수정 불가 |
 | API-PST-008 | 게시글 삭제 | DELETE | /api/v1/posts/{postId} | Bearer | Must | 작성자가 게시글을 논리 삭제하고 미디어 30일 후 삭제를 예약한다. | - | Empty | 204 | POST_NOT_AUTHOR, POST_NOT_FOUND, COMMON_409 | - | - | AUTH-013, PST-038~039, SYS-006 | posts, post_images<br>※ 방문·기지급 뱃지는 유지 |
 | API-PST-009 | 게시글 좋아요 | PUT | /api/v1/posts/{postId}/like | Bearer | Must | 게시글 좋아요를 멱등 등록한다. | - | LikeResult | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | - | 멱등 PUT | PST-040~041 | likes, posts |
@@ -1004,11 +1004,11 @@
 
 | 필드 경로 | 타입 | 필수 | 설명 | 예시 | 원천 |
 |---|---|---|---|---|---|
-| tier | enum | Y | HIGH\|MEDIUM\|LOW | MEDIUM | posts/tier_logs |
-| distanceM | number\|null | Y | 장소 중심 거리 | 120 | tier_logs |
+| tier | enum | Y | HIGH\|MEDIUM\|LOW | MEDIUM | posts |
+| distanceM | number\|null | Y | 장소 중심 거리 | 120 | posts/places |
 | verifyRadiusM | integer | Y | 적용 반경 | 500 | places/events/regions |
-| reasonCode | string | Y | 판정 이유 코드 | WITHIN_RADIUS_30D | tier_logs |
-| reasonParams | object | Y | 다국어 문구 변수 | {days:2} | tier_logs |
+| reasonCode | string | Y | 판정 이유 코드 | WITHIN_RADIUS_30D | 계산값 |
+| reasonParams | object | Y | 다국어 문구 변수 | {days:2} | 계산값 |
 | improvementHints | string[] | Y | 낮음 개선 힌트 코드 | [] | - |
 
 ### PostSummary
@@ -1039,7 +1039,7 @@
 | translations | object\|null | Y | 후속 번역 확장 필드 |  | 향후 |
 | tags | TagSummary[] | Y | 해시태그 | [...] | tags/post_tags |
 | event | EventSummary\|null | Y | 이벤트 참여 정보 | {...} | events |
-| tierResult | TierResult | Y | 등급 근거 | {...} | tier_logs |
+| tierResult | TierResult | Y | 등급 근거 | {...} | posts/places |
 | viewCount | integer | Y | 조회 수 | 100 | posts |
 
 ### Comment
@@ -1328,7 +1328,7 @@
 | 필드 경로 | 타입 | 필수 | 설명 | 예시 | 원천 |
 |---|---|---|---|---|---|
 | post | PostDetail | Y | 생성된 게시글 | {...} | posts |
-| tierResult | TierResult | Y | 서버 판정 등급 | {...} | tier_logs |
+| tierResult | TierResult | Y | 서버 판정 등급 | {...} | posts/places |
 | visitRecorded | boolean | Y | 방문 기록 생성 여부 | true | visits |
 | earnedBadges | BadgeSummary[] | Y | 이번 요청으로 획득한 뱃지 | [...] | user_badges |
 

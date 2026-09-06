@@ -1,7 +1,7 @@
 services:
   postgres:
     # Percona Distribution 17.10.2 + PostGIS 3.5.7
-    image: percona/percona-distribution-postgresql-with-postgis:17.10-2
+    image: percona/percona-distribution-postgresql-with-postgis:17.10-5
     environment:
       POSTGRES_DB: snaphere
       POSTGRES_USER: snaphere
