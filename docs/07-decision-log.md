@@ -175,5 +175,7 @@
 | DEC-20260907-019 | 2026-09-07 | 에이전트 자동 결정 | 확정·기존 입력란 레이아웃 복구 | 전역 검색창 테마의 높이 변경 / 프로필 설정 입력란에서만 고정 높이 해제 | 프로필 설정의 입력 장식에서 전역 검색창용 38 높이 제약을 해제하여 소개글의 기존 4줄·160자 입력과 글자 수 표시가 필요한 높이를 확보한다. 다른 화면의 검색창 테마는 유지하고 사용자 입력은 hot reload로 보존한다. | 로그인 성공 후 실기기에서 소개글 테두리가 납작해지고 입력 내용이 보이지 않는 현상을 확인했다. 전역 테마 변경은 다른 검색창에 영향을 주므로 해당 화면에 한정한 저위험 레이아웃 교정을 선택한다. | 프로필 설정 닉네임·소개글 배치, 키보드·큰 글자 회귀 테스트 | USER-001, DEC-20260907-015 | API·DB·160자 제한·약관 동의 정책은 변경하지 않는다. 실계정 입력·동의·제출을 대신하지 않는다. |
 | DEC-20260907-020 | 2026-09-07 | 사용자 | 확정·실행 요청 | 로컬 수정 유지 / 기능 단위 커밋 후 원격 브랜치 push 및 PR 생성 | 실기기 UX·로그인·프로필 입력란 수정 결과를 `docs/09-git-strategy.md`에 따라 기능 단위로 커밋하고 현재 feature 브랜치를 원격에 push한 뒤 `develop` 대상 GitHub PR을 생성한다. | 사용자 요청: "커밋생성하고 git-strategy에 따라 푸쉬하고 pr 생성해주세요" | 현재 feature 브랜치 커밋 이력, GitHub 원격 브랜치와 PR, 변경 문서 | DEC-20260907-015~019, 협업 규칙 | 사용자 소유 `backend/.vscode/launch.json`과 루트 `README.md`, 로컬 환경·비밀 값은 제외한다. PR merge는 포함하지 않는다. |
 
+실행 결과 (2026-09-07): 실기기 UX 후속 변경을 기능별 5개 커밋으로 생성하고 기존 홈·마이 구현 커밋과 함께 `origin/feature/frontend-home-profile-map001-user001`에 push했다. 최신 `origin/develop` 대비 뒤처진 커밋이 없음을 확인했으며, `develop` 대상 GitHub PR #51을 생성했다. PR 생성 시점의 head는 `a2c7b06e15c743ba2da276ea875782fcd6a02f97`이다. 사용자 소유 `backend/.vscode/launch.json`과 루트 `README.md`는 작업 트리에 남겨 두고 커밋하지 않았다.
+
 원본 스프레드시트: [`specs/snaphere-requirements-spec-v1.1.7.xlsx`](specs/snaphere-requirements-spec-v1.1.7.xlsx) · [`specs/snaphere-api-spec-v1.1.7.xlsx`](specs/snaphere-api-spec-v1.1.7.xlsx)
 변경 이력: [`08-spec-changelog.md`](08-spec-changelog.md)
