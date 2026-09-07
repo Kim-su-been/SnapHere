@@ -6,6 +6,7 @@ import 'package:snap_here/src/core/ui/design_icon.dart';
 import 'package:snap_here/src/core/ui/paged_sliver.dart';
 import 'package:snap_here/src/core/ui/remote_image.dart';
 import 'package:snap_here/src/features/auth/application/auth_controller.dart';
+import 'package:snap_here/src/features/community/domain/community_models.dart';
 import 'package:snap_here/src/features/profile/application/profile_providers.dart';
 import 'package:snap_here/src/features/profile/domain/profile_models.dart';
 import 'package:snap_here/src/features/profile/presentation/profile_settings_sheet.dart';
@@ -28,6 +29,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final AsyncValue<ProfileSnapshot?> profile = own
         ? ref.watch(profileSnapshotProvider)
         : ref.watch(publicProfileProvider(widget.userId!));
+    final repository = ref.watch(profileRepositoryProvider);
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -95,6 +97,92 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     : _ProfileHeader(profile: data, own: own),
               ),
             ),
+            if (profile.value case final data? when own) ...[
+              SliverToBoxAdapter(
+                child: own
+                    ? Material(
+                        color: Colors.white,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                alignment: Alignment.center,
+                                constraints: const BoxConstraints(
+                                  minHeight: 46,
+                                ),
+                                decoration: const BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color: AppColors.brand,
+                                      width: 3,
+                                    ),
+                                  ),
+                                ),
+                                child: const Text(
+                                  '내 게시글',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: TextButton(
+                                onPressed: () =>
+                                    context.push('/profile/badges'),
+                                child: const Text(
+                                  '수집한 뱃지',
+                                  style: TextStyle(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
+                        child: Text(
+                          '게시글',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+              ),
+              PagedSliver<CommunityPost>(
+                key: ValueKey((repository, data.userId, _revision)),
+                load: (cursor) =>
+                    repository.fetchPosts(data.userId, cursor: cursor),
+                itemId: (post) => post.postId,
+                empty: _EmptyPosts(own: own),
+                sliverBuilder: (posts) => SliverPadding(
+                  padding: const EdgeInsets.all(16),
+                  sliver: own
+                      ? SliverList.separated(
+                          itemCount: posts.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (_, index) =>
+                              ProfilePostCard(post: posts[index]),
+                        )
+                      : SliverGrid.builder(
+                          itemCount: posts.length,
+                          gridDelegate:
+                              const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 240,
+                                mainAxisExtent: 218,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                              ),
+                          itemBuilder: (_, index) => ProfilePostCard(
+                            post: posts[index],
+                            compact: true,
+                          ),
+                        ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -213,3 +301,105 @@ String formatCount(int value) => '$value'.replaceAllMapped(
   RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
   (match) => '${match[1]},',
 );
+
+class ProfilePostCard extends StatelessWidget {
+  const ProfilePostCard({required this.post, this.compact = false, super.key});
+  final CommunityPost post;
+  final bool compact;
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.white,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(compact ? 12 : 16),
+      side: const BorderSide(color: AppColors.border),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: () => context.push('/photos/${post.postId}'),
+      child: Padding(
+        padding: EdgeInsets.all(compact ? 12 : 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                if (compact) ...[
+                  ProfileAvatar(url: post.author.profileImageUrl, size: 24),
+                  const SizedBox(width: 6),
+                ],
+                Expanded(
+                  child: Text(
+                    compact
+                        ? post.author.nickname
+                        : post.locationLabel ?? '여행 스냅',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: compact
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                height: compact ? 100 : 160,
+                child: RemoteImage(url: post.thumbnailUrl),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              post.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: compact ? 13 : 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _EmptyPosts extends StatelessWidget {
+  const _EmptyPosts({required this.own});
+  final bool own;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 48),
+    child: Column(
+      children: [
+        const CircleAvatar(
+          radius: 32,
+          backgroundColor: Color(0xFFE9EEF2),
+          child: DesignIcon('camera', size: 28),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          '아직 게시글이 없어요',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+        ),
+        if (own) ...[
+          const SizedBox(height: 8),
+          const Text(
+            '첫 여행 사진을 올려 보세요',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 20),
+          FilledButton(
+            onPressed: () => context.push('/upload'),
+            child: const Text('첫 사진 올리기'),
+          ),
+        ],
+      ],
+    ),
+  );
+}
