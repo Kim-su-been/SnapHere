@@ -1,5 +1,7 @@
 package com.snaphere.api.post;
 
+import com.snaphere.api.auth.ExternalIds;
+import com.snaphere.api.common.error.ErrorCode;
 import com.snaphere.api.common.security.CurrentUser;
 import com.snaphere.api.common.security.CurrentUserProvider;
 import com.snaphere.api.common.web.ApiResponse;
@@ -12,6 +14,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import java.net.URI;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -54,6 +57,7 @@ public class PostController {
         CreatePostResponse created = postCreateService.create(user.userId(), request);
 
         return ResponseEntity.status(HttpStatus.CREATED)
+                .location(URI.create("/api/v1/posts/" + created.postId()))
                 .body(ApiResponse.ok(created, TraceIdFilter.currentTraceId(httpRequest)));
     }
 
@@ -65,12 +69,12 @@ public class PostController {
      */
     @PatchMapping("/{postId}")
     public ResponseEntity<ApiResponse<PostDetailResponse>> update(
-            @PathVariable long postId,
+            @PathVariable String postId,
             @Valid @RequestBody UpdatePostRequest request,
             HttpServletRequest httpRequest) {
 
         CurrentUser user = currentUserProvider.require(httpRequest);
-        PostDetailResponse updated = postEditService.update(postId, user.userId(), request);
+        PostDetailResponse updated = postEditService.update(parsePostId(postId), user.userId(), request);
 
         return ResponseEntity.ok(ApiResponse.ok(updated,
                 TraceIdFilter.currentTraceId(httpRequest)));
@@ -83,9 +87,13 @@ public class PostController {
      * 본문이 없는 204 응답이라 공통 봉투를 싣지 않는다.
      */
     @DeleteMapping("/{postId}")
-    public ResponseEntity<Void> delete(@PathVariable long postId, HttpServletRequest httpRequest) {
+    public ResponseEntity<Void> delete(@PathVariable String postId, HttpServletRequest httpRequest) {
         CurrentUser user = currentUserProvider.require(httpRequest);
-        postEditService.delete(postId, user.userId());
+        postEditService.delete(parsePostId(postId), user.userId());
         return ResponseEntity.noContent().build();
+    }
+
+    private static long parsePostId(String postId) {
+        return ExternalIds.parse(postId, "pst", ErrorCode.POST_NOT_FOUND);
     }
 }

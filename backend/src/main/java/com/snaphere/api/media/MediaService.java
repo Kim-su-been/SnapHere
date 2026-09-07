@@ -78,7 +78,7 @@ public class MediaService {
 
     /** {@code posts/{userId}/{uuid}.webp} 형태. 확장자는 검증된 형식에서만 나온다. */
     private String buildObjectKey(MediaPurpose purpose, UUID userId, AllowedImageType type) {
-        return purpose.keyPrefix()
+        return (purpose == MediaPurpose.POST_IMAGE ? "originals/" : "") + purpose.keyPrefix()
                 + "/" + userId
                 + "/" + UUID.randomUUID().toString().replace("-", "")
                 + "." + type.extension();

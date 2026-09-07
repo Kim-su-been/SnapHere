@@ -41,11 +41,13 @@ snaphere:
     # 분산 락이 없어 여러 인스턴스에서는 배치 실행 인스턴스를 하나로 제한한다.
     enabled: ${SNAPHERE_JOBS_ENABLED:true}
     place-sync-cron: ${PLACE_SYNC_CRON:0 0 4 * * *}
+    event-sync-cron: ${EVENT_SYNC_CRON:0 30 4 * * *}
     view-flush-cron: ${VIEW_FLUSH_CRON:0 * * * * *}
     heatmap-realtime-delay: ${HEATMAP_REALTIME_DELAY:PT1M}
     heatmap-periodic-delay: ${HEATMAP_PERIODIC_DELAY:PT10M}
     ranking-delay: ${RANKING_DELAY:PT10M}
-    follow-counter-reconcile-cron: ${FOLLOW_COUNTER_RECONCILE_CRON:0 10 5 * * *}
+    media-retry-delay: ${MEDIA_RETRY_DELAY:PT5M}
+    counter-reconcile-cron: ${COUNTER_RECONCILE_CRON:0 10 5 * * *}
     account-purge-cron: ${ACCOUNT_PURGE_CRON:0 0 5 * * *}
     search-log-purge-cron: ${SEARCH_LOG_PURGE_CRON:0 20 5 * * *}
   paging:
@@ -85,5 +87,7 @@ management:
         include: health,info,metrics
 
 logging:
+  pattern:
+    level: "%5p [traceId:%X{traceId:-}]"
   level:
     com.snaphere.api: DEBUG

@@ -4,6 +4,7 @@ import com.snaphere.api.badge.AwardedBadge;
 import com.snaphere.api.badge.BadgeAwarder;
 import com.snaphere.api.common.error.ApiException;
 import com.snaphere.api.common.error.ErrorCode;
+import com.snaphere.api.auth.ExternalIds;
 import com.snaphere.api.event.EventParticipationRecorder;
 import com.snaphere.api.place.EventFixedTagReader;
 import com.snaphere.api.place.EventSnapshot;
@@ -177,6 +178,7 @@ public class PostCreateService {
 
         // 썸네일·EXIF 제거·해시 계산은 응답과 분리한다. 커밋 이후에 시작하므로 후처리
         // 스레드가 방금 만든 행을 볼 수 있다 (PST-019, PST-020).
+        post.beginMediaProcessing();
         eventPublisher.publishEvent(new PostCreatedEvent(post.getPostId(), userId));
 
         return buildResponse(post, place, savedImages, resolvedTags, savedTagLinks,
@@ -290,13 +292,11 @@ public class PostCreateService {
                                              boolean visitRecorded,
                                              List<AwardedBadge> awarded) {
         TierResultResponse tierResult = TierResultResponse.from(decision);
-        PostDetailResponse detail = assembler.detailOf(
-                post, place, images, resolvedTags, tagLinks, tierResult);
-
         List<BadgeSummaryResponse> badges = new ArrayList<>(awarded.size());
         for (AwardedBadge badge : awarded) {
             badges.add(BadgeSummaryResponse.from(badge));
         }
-        return new CreatePostResponse(detail, tierResult, visitRecorded, badges);
+        return new CreatePostResponse(ExternalIds.post(post.getPostId()), "PROCESSING",
+                tierResult, visitRecorded, badges);
     }
 }

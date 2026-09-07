@@ -4,6 +4,8 @@ import com.snaphere.api.common.error.ApiException;
 import com.snaphere.api.common.error.ErrorCode;
 import com.snaphere.api.post.entity.PostEntity;
 import com.snaphere.api.post.repository.PostRepository;
+import com.snaphere.api.post.repository.PostImageRepository;
+import com.snaphere.api.post.media.MediaProcessingStateStore;
 import com.snaphere.api.post.tier.PhotoSource;
 import com.snaphere.api.post.tier.TrustTier;
 import com.snaphere.api.post.view.PostViewCounter;
@@ -43,12 +45,15 @@ class PostQueryServiceTest {
     @Mock private PostRepository posts;
     @Mock private PostResponseAssembler assembler;
     @Mock private PostViewCounter viewCounter;
+    @Mock private PostImageRepository images;
+    @Mock private MediaProcessingStateStore mediaStates;
 
     private PostQueryService service;
 
     @BeforeEach
     void setUp() {
-        service = new PostQueryService(posts, assembler, viewCounter);
+        service = new PostQueryService(posts, assembler, viewCounter, images, mediaStates);
+        when(images.isPostReady(anyLong())).thenReturn(true);
         // 조립 결과는 이 테스트의 관심이 아니다. Mockito 기본값(null)을 그대로 쓴다.
         when(viewCounter.countIfFirstToday(anyLong(), any())).thenReturn(false);
     }

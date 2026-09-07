@@ -44,8 +44,8 @@ class MediaUrlResolverTest {
     @DisplayName("본인에게 발급된 게시글 사진 키만 통과한다")
     void 본인_키만_허용() {
         MediaUrlResolver r = resolver("https://cdn.test");
-        assertThat(r.isOwnedPostImageKey("posts/" + USER + "/abc.webp", USER)).isTrue();
-        assertThat(r.isOwnedPostImageKey("posts/" + OTHER + "/abc.webp", USER)).isFalse();
+        assertThat(r.isOwnedPostImageKey("originals/posts/" + USER + "/abc.webp", USER)).isTrue();
+        assertThat(r.isOwnedPostImageKey("originals/posts/" + OTHER + "/abc.webp", USER)).isFalse();
     }
 
     @Test
@@ -53,8 +53,14 @@ class MediaUrlResolverTest {
     void 잘못된_키_거부() {
         MediaUrlResolver r = resolver("https://cdn.test");
         assertThat(r.isOwnedPostImageKey("profile/" + USER + "/abc.webp", USER)).isFalse();
-        assertThat(r.isOwnedPostImageKey("posts/" + USER + "/../" + OTHER + "/a.webp", USER)).isFalse();
-        assertThat(r.isOwnedPostImageKey("posts/" + USER + "/", USER)).isFalse();
+        assertThat(r.isOwnedPostImageKey("originals/posts/" + USER + "/../" + OTHER + "/a.webp", USER)).isFalse();
+        assertThat(r.isOwnedPostImageKey("originals/posts/" + USER + "/", USER)).isFalse();
         assertThat(r.isOwnedPostImageKey(null, USER)).isFalse();
+    }
+
+    @Test
+    @DisplayName("비공개 원본 키는 URL로 노출하지 않는다")
+    void 비공개_원본_차단() {
+        assertThat(resolver("https://cdn.test").publicUrl("originals/posts/a/b.webp")).isNull();
     }
 }

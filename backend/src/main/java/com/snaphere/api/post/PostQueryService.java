@@ -6,6 +6,8 @@ import com.snaphere.api.post.dto.PostDetailResponse;
 import com.snaphere.api.post.entity.PostEntity;
 import com.snaphere.api.post.repository.PostRepository;
 import com.snaphere.api.post.view.PostViewCounter;
+import com.snaphere.api.post.repository.PostImageRepository;
+import com.snaphere.api.post.media.MediaProcessingStateStore;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,18 +29,32 @@ public class PostQueryService {
     private final PostRepository posts;
     private final PostResponseAssembler assembler;
     private final PostViewCounter viewCounter;
+    private final PostImageRepository images;
+    private final MediaProcessingStateStore mediaStates;
 
     public PostQueryService(PostRepository posts,
                             PostResponseAssembler assembler,
-                            PostViewCounter viewCounter) {
+                            PostViewCounter viewCounter,
+                            PostImageRepository images,
+                            MediaProcessingStateStore mediaStates) {
         this.posts = posts;
         this.assembler = assembler;
         this.viewCounter = viewCounter;
+        this.images = images;
+        this.mediaStates = mediaStates;
     }
 
     @Transactional
     public PostDetailResponse detail(long postId, Optional<UUID> viewerId) {
         PostEntity post = load(postId, viewerId);
+
+        if (!images.isPostReady(postId)) {
+            if (viewerId.filter(post::isOwnedBy).isEmpty())
+                throw new ApiException(ErrorCode.POST_NOT_VISIBLE,Map.of("postId",postId));
+            ErrorCode code="FAILED".equals(mediaStates.status(postId))
+                    ? ErrorCode.POST_MEDIA_FAILED : ErrorCode.POST_MEDIA_PROCESSING;
+            throw new ApiException(code,Map.of("postId",postId));
+        }
 
         if (viewCounter.countIfFirstToday(postId, viewerId)) {
             posts.increaseViewCount(postId);

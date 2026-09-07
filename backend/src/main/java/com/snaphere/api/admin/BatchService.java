@@ -21,6 +21,7 @@ import org.springframework.core.task.TaskExecutor;
 
 import java.sql.Types;
 import java.time.OffsetDateTime;
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -33,25 +34,32 @@ public class BatchService {
     private final TaskExecutor taskExecutor;
     private final MapAggregationService mapAggregation;
     private final RankingAggregationService rankingAggregation;
+    private final EventSyncWorker eventWorker;
+    private final CounterReconcileService counterReconcile;
 
     public BatchService(JdbcClient jdbc, PlaceSyncWorker worker,
                         @Qualifier(PlaceTaskConfig.PLACE_TASK_EXECUTOR) TaskExecutor taskExecutor,
                         MapAggregationService mapAggregation,
-                        RankingAggregationService rankingAggregation) {
+                        RankingAggregationService rankingAggregation,
+                        EventSyncWorker eventWorker,
+                        CounterReconcileService counterReconcile) {
         this.jdbc = jdbc; this.worker = worker; this.taskExecutor = taskExecutor;
         this.mapAggregation = mapAggregation;
         this.rankingAggregation = rankingAggregation;
+        this.eventWorker = eventWorker;
+        this.counterReconcile = counterReconcile;
     }
 
     public BatchDtos.BatchRun start(String jobType, BatchDtos.StartRequest request) {
-        if (!List.of("PLACE_SYNC", "HEATMAP_RECALC", "RANKING_RECALC").contains(jobType)) {
+        if (!List.of("PLACE_SYNC", "EVENT_SYNC", "HEATMAP_RECALC", "RANKING_RECALC", "COUNTER_RECONCILE").contains(jobType)) {
             throw new ApiException(ErrorCode.COMMON_400);
         }
         Integer area = request == null ? null : request.areaCode();
         Integer type = request == null ? null : request.contentTypeId();
-        if (!"PLACE_SYNC".equals(jobType) && (area != null || type != null)) {
+        if (!("PLACE_SYNC".equals(jobType) || "EVENT_SYNC".equals(jobType)) && (area != null || type != null)) {
             throw new ApiException(ErrorCode.COMMON_400);
         }
+        if ("EVENT_SYNC".equals(jobType) && type != null) throw new ApiException(ErrorCode.COMMON_400);
         if (area != null && !AREAS.contains(area)) throw new ApiException(ErrorCode.COMMON_400);
         if (type != null && !TYPES.contains(type)) throw new ApiException(ErrorCode.COMMON_400);
         try {
@@ -60,12 +68,50 @@ public class BatchService {
             taskExecutor.execute(() -> {
                 if ("HEATMAP_RECALC".equals(jobType)) executeHeatmap(runId);
                 else if ("RANKING_RECALC".equals(jobType)) executeRanking(runId);
+                else if ("EVENT_SYNC".equals(jobType)) executeEvents(runId,area);
+                else if ("COUNTER_RECONCILE".equals(jobType)) executeCounters(runId);
                 else execute(runId, area, type);
             });
             return get(runId);
         } catch (DuplicateKeyException e) {
             throw new ApiException(ErrorCode.BATCH_ALREADY_RUNNING);
         }
+    }
+
+    public void executeEvents(long runId, Integer areaFilter) {
+        jdbc.sql("UPDATE batch_runs SET status='RUNNING',started_at=now() WHERE run_id=:id").param("id",runId).update();
+        LocalDate today = LocalDate.now(java.time.ZoneId.of("Asia/Seoul"));
+        LocalDate from = today.minusDays(30), to = today.plusYears(1);
+        int processed=0, failed=0;
+        for (int area : areaFilter == null ? AREAS : List.of(areaFilter)) {
+            OffsetDateTime started=OffsetDateTime.now();
+            try {
+                int count=eventWorker.syncArea(area,from,to); processed+=count;
+                log(runId,area,null,"EVENT_SYNC","SUCCESS",count,null,started);
+            } catch (RuntimeException failure) {
+                failed++; log(runId,area,null,"EVENT_SYNC","FAIL",0,rootMessage(failure),started);
+                log.warn("행사 동기화 지역 실패 area={}",area,failure);
+            }
+        }
+        finish(runId,processed,failed);
+    }
+
+    public void executeCounters(long runId) {
+        OffsetDateTime started=OffsetDateTime.now();
+        jdbc.sql("UPDATE batch_runs SET status='RUNNING',started_at=now() WHERE run_id=:id").param("id",runId).update();
+        try {
+            int count=counterReconcile.reconcile();
+            finish(runId,count,0); log(runId,null,null,"COUNTER_RECONCILE","SUCCESS",count,null,started);
+        } catch (RuntimeException failure) {
+            finish(runId,0,1); log(runId,null,null,"COUNTER_RECONCILE","FAIL",0,rootMessage(failure),started);
+            log.error("카운터 보정 실패. runId={}",runId,failure);
+        }
+    }
+
+    private void finish(long runId,int processed,int failed) {
+        jdbc.sql("UPDATE batch_runs SET status=:status,processed_count=:processed,failed_count=:failed,finished_at=now() WHERE run_id=:id")
+                .param("status",failed==0?"SUCCESS":"FAIL").param("processed",processed)
+                .param("failed",failed).param("id",runId).update();
     }
 
     public void executeHeatmap(long runId) {
@@ -137,6 +183,12 @@ public class BatchService {
         catch (ApiException e) { if (e.errorCode() != ErrorCode.BATCH_ALREADY_RUNNING) throw e; }
     }
 
+    @Scheduled(cron = "${snaphere.jobs.event-sync-cron:0 30 4 * * *}", zone = "Asia/Seoul")
+    public void scheduledEvents() {
+        try { start("EVENT_SYNC",new BatchDtos.StartRequest(null,null)); }
+        catch (ApiException e) { if (e.errorCode()!=ErrorCode.BATCH_ALREADY_RUNNING) throw e; }
+    }
+
     public BatchDtos.BatchRun get(long runId) {
         return jdbc.sql("SELECT run_id,job_type,status,processed_count,failed_count,started_at FROM batch_runs WHERE run_id=:id")
                 .param("id", runId).query((rs,n) -> new BatchDtos.BatchRun(ExternalIds.run(rs.getLong(1)),
@@ -145,17 +197,19 @@ public class BatchService {
                 .orElseThrow(() -> new ApiException(ErrorCode.COMMON_404));
     }
 
-    public CursorPage<BatchDtos.SyncLog> logs(String result, String cursor, int size) {
+    public CursorPage<BatchDtos.SyncLog> logs(String jobType, String result, String cursor, int size) {
         if (size < 1 || size > 50) throw new ApiException(ErrorCode.COMMON_400);
         Long after = CursorCodec.decode(cursor);
         StringBuilder sql = new StringBuilder("""
                 SELECT sync_id,job_type,area_code,content_type_id,result,count,message,started_at,finished_at
                 FROM sync_logs WHERE 1=1
                 """);
+        if (jobType != null) sql.append(" AND job_type=:jobType");
         if (result != null) sql.append(" AND result=:result");
         if (after != null) sql.append(" AND sync_id<:after");
         sql.append(" ORDER BY sync_id DESC LIMIT :limit");
         JdbcClient.StatementSpec spec = jdbc.sql(sql.toString()).param("limit", size + 1);
+        if (jobType != null) spec = spec.param("jobType",jobType);
         if (result != null) spec = spec.param("result", result);
         if (after != null) spec = spec.param("after", after);
         List<BatchDtos.SyncLog> rows = spec.query((rs,n) -> new BatchDtos.SyncLog(ExternalIds.sync(rs.getLong(1)),

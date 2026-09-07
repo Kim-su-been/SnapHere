@@ -84,7 +84,13 @@ public class ReportEntity {
     /** 운영자 검토 완료. 상태와 시각을 함께 옮긴다 — DB CHECK 가 짝을 요구한다. (SYS-017) */
     public void review(ReportAction action) {
         this.action = action;
-        this.status = ReportStatus.REVIEWED;
+        this.status = ReportStatus.RESOLVED;
+        this.reviewedAt = OffsetDateTime.now();
+    }
+
+    public void reject() {
+        this.action = ReportAction.KEEP;
+        this.status = ReportStatus.REJECTED;
         this.reviewedAt = OffsetDateTime.now();
     }
 

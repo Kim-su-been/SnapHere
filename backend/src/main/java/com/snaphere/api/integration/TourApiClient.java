@@ -39,6 +39,21 @@ public class TourApiClient implements TourPlaceDetailClient {
         return new PlacePage(values, total);
     }
 
+    public FestivalPage festivals(int areaCode, LocalDate startDate, LocalDate endDate, int page, int size) {
+        JsonNode root = get("KorService2", "searchFestival2", uri -> uri
+                .queryParam("areaCode", areaCode)
+                .queryParam("eventStartDate", startDate.format(DateTimeFormatter.BASIC_ISO_DATE))
+                .queryParam("eventEndDate", endDate.format(DateTimeFormatter.BASIC_ISO_DATE))
+                .queryParam("arrange", "A").queryParam("numOfRows", size).queryParam("pageNo", page));
+        List<Festival> values = items(root).stream().map(n -> new Festival(
+                text(n,"contentid"), text(n,"title"), blankToNull(text(n,"addr1")),
+                blankToNull(text(n,"firstimage")), doubleOrNull(n,"mapy"), doubleOrNull(n,"mapx"),
+                intValue(n,"areacode"), integerOrNull(n,"sigungucode"),
+                parseDate(text(n,"eventstartdate")), parseDate(text(n,"eventenddate")))).toList();
+        int total = root.path("response").path("body").path("totalCount").asInt(values.size());
+        return new FestivalPage(values,total);
+    }
+
     @Override
     public Detail load(String contentId, String languageCode) {
         JsonNode root = get(service(languageCode), "detailCommon2", uri -> uri
@@ -121,6 +136,10 @@ public class TourApiClient implements TourPlaceDetailClient {
         try { return LocalDateTime.parse(value, DateTimeFormatter.ofPattern("yyyyMMddHHmmss")).atZone(KST).toInstant(); }
         catch (RuntimeException e) { return null; }
     }
+    private static LocalDate parseDate(String value) {
+        try { return LocalDate.parse(value,DateTimeFormatter.BASIC_ISO_DATE); }
+        catch (RuntimeException failure) { return null; }
+    }
     private static String blankToNull(String value) { return value == null || value.isBlank() ? null : value; }
 
     public record CodeItem(int code, String name) { }
@@ -128,6 +147,10 @@ public class TourApiClient implements TourPlaceDetailClient {
                                 String imageUrl, Double lat, Double lng, int areaCode,
                                 Integer sigunguCode, Instant modifiedAt, boolean deleted) { }
     public record PlacePage(List<OfficialPlace> items, int totalCount) { }
+    public record Festival(String contentId, String title, String addr1, String imageUrl,
+                           Double lat, Double lng, int areaCode, Integer sigunguCode,
+                           LocalDate startDate, LocalDate endDate) { }
+    public record FestivalPage(List<Festival> items, int totalCount) { }
     public static class TourApiException extends RuntimeException {
         public TourApiException(String operation, Throwable cause) { super(operation, cause); }
     }

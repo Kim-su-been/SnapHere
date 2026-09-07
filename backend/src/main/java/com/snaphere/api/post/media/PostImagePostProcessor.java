@@ -5,11 +5,11 @@ import com.snaphere.api.media.storage.MediaObjectStore;
 import com.snaphere.api.media.storage.MediaUrlResolver;
 import com.snaphere.api.post.entity.PostImageEntity;
 import com.snaphere.api.post.repository.PostImageRepository;
+import com.snaphere.api.post.repository.PostRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,25 +41,38 @@ public class PostImagePostProcessor {
     private final PostImageRepository postImages;
     private final MediaObjectStore objectStore;
     private final MediaUrlResolver urlResolver;
+    private final PostRepository posts;
+    private final MediaProcessingStateStore states;
 
     public PostImagePostProcessor(PostImageRepository postImages,
                                   MediaObjectStore objectStore,
-                                  MediaUrlResolver urlResolver) {
+                                  MediaUrlResolver urlResolver,
+                                  PostRepository posts,
+                                  MediaProcessingStateStore states) {
         this.postImages = postImages;
         this.objectStore = objectStore;
         this.urlResolver = urlResolver;
+        this.posts = posts;
+        this.states = states;
     }
 
-    @Transactional
     public void process(long postId) {
+        int attempt=states.begin(postId);
+        if (attempt <= 0) return;
         List<PostImageEntity> images = postImages.findByPostIdOrderBySortOrder(postId);
         if (images.isEmpty()) {
             log.warn("후처리할 사진이 없다. postId={}", postId);
+            states.complete(postId,false,attempt);
             return;
         }
         for (PostImageEntity image : images) {
             processOne(postId, image);
         }
+        boolean ready=postImages.isPostReady(postId);
+        if (ready) posts.findById(postId).ifPresent(post -> {
+            post.completeMediaProcessing(); posts.save(post);
+        });
+        states.complete(postId,ready,attempt);
     }
 
     private void processOne(long postId, PostImageEntity image) {
@@ -79,13 +92,15 @@ public class PostImagePostProcessor {
         try {
             ProcessedImage processed = ImagePostProcessing.process(original.get());
 
-            objectStore.copy(key, MediaObjectKeys.original(key));
-            objectStore.put(key, processed.sanitized(), processed.contentType());
+            String originalKey=MediaObjectKeys.original(key);
+            if (!MediaObjectKeys.isPrivateOriginal(key)) objectStore.copy(key,originalKey);
+            String publicKey=MediaObjectKeys.publicImage(originalKey);
+            objectStore.put(publicKey, processed.sanitized(), processed.contentType());
 
-            String thumbnailKey = MediaObjectKeys.thumbnail(key);
+            String thumbnailKey = MediaObjectKeys.thumbnail(originalKey);
             objectStore.put(thumbnailKey, processed.thumbnail(), processed.contentType());
 
-            image.completePostProcessing(urlResolver.publicUrl(thumbnailKey),
+            image.completePostProcessing(publicKey,urlResolver.publicUrl(thumbnailKey),
                     processed.sha256(), processed.aspectRatio());
             postImages.saveAndFlush(image);
 
