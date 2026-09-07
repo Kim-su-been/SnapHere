@@ -15,7 +15,10 @@ class OnboardingScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(24, 60, 24, 20),
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                minHeight: constraints.maxHeight - 80,
+                minHeight: (constraints.maxHeight - 80).clamp(
+                  0.0,
+                  double.infinity,
+                ),
               ),
               child: IntrinsicHeight(
                 child: Column(

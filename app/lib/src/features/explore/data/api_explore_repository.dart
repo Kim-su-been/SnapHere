@@ -33,12 +33,15 @@ class ApiExploreRepository implements ExploreRepository {
   RegionOverview _mapRegion(Map<String, Object?> json) {
     final region = jsonMap(json['region']);
     final rawPost = json['representativePost'];
+    final rawPlace = rawPost is Map ? rawPost['place'] : null;
     return RegionOverview(
       areaCode: (region['areaCode']! as num).toInt(),
       name: region['nameKo']! as String,
       imageUrl: region['representativeImageUrl'] as String?,
       postCount: (json['postCount'] as num? ?? 0).toInt(),
       contributorCount: (json['contributorCount'] as num? ?? 0).toInt(),
+      latitude: rawPlace is Map ? (rawPlace['lat'] as num?)?.toDouble() : null,
+      longitude: rawPlace is Map ? (rawPlace['lng'] as num?)?.toDouble() : null,
       representativePost: rawPost is Map
           ? _post(Map<String, Object?>.from(rawPost))
           : null,

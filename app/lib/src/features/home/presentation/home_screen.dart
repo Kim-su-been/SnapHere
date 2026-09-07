@@ -1,99 +1,353 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:snap_here/src/features/community/presentation/widgets/community_post_card.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:snap_here/src/app/theme/app_tokens.dart';
+import 'package:snap_here/src/core/ui/design_icon.dart';
+import 'package:snap_here/src/core/ui/paged_sliver.dart';
 import 'package:snap_here/src/features/explore/application/explore_providers.dart';
+import 'package:snap_here/src/features/explore/domain/explore_models.dart';
+import 'package:snap_here/src/features/home/application/home_map_providers.dart';
+import 'package:snap_here/src/features/home/presentation/region_posts_sheet.dart';
+import 'package:snap_here/src/features/map/presentation/snap_map.dart';
 
-class HomeScreen extends ConsumerWidget {
+/// Figma 92:312 / 92:380 / 92:446 / 92:561.
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
+  @override
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  GoogleMapController? _map;
+  final _sheet = DraggableScrollableController();
+  int? _areaCode;
+  double _extent = .58;
+  bool _locating = false;
+  bool _locationGranted = false;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final regions = ref.watch(regionsProvider);
-    final posts = ref.watch(homePopularPostsProvider);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('SnapHere'),
-        actions: [
-          IconButton(
-            tooltip: '검색',
-            onPressed: () => context.push('/community/search'),
-            icon: const Icon(Icons.search),
+  void dispose() {
+    _sheet.dispose();
+    _map?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _select(RegionOverview region) async {
+    setState(() {
+      _areaCode = region.areaCode;
+      _extent = .58;
+    });
+    // 같은 지역을 다시 선택해도 실제 시트 높이와 지도 padding을 맞춘다.
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || _areaCode != region.areaCode) return;
+    if (_sheet.isAttached && (_sheet.size - .58).abs() > .01) {
+      await _sheet.animateTo(
+        .58,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    }
+    if (!mounted || _areaCode != region.areaCode) return;
+    if (region.latitude != null && region.longitude != null) {
+      await _map?.animateCamera(
+        CameraUpdate.newLatLngZoom(
+          LatLng(region.latitude!, region.longitude!),
+          8.5,
+        ),
+      );
+    }
+  }
+
+  Future<void> _locate() async {
+    if (_locating) return;
+    setState(() => _locating = true);
+    try {
+      final position = await ref.read(homeLocationProvider).currentPosition();
+      if (!mounted) return;
+      setState(() {
+        _areaCode = null;
+        _locationGranted = true;
+      });
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      await _map?.animateCamera(CameraUpdate.newLatLngZoom(position, 12));
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
+      }
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  Future<void> _chooseRegion(List<RegionOverview> regions) async {
+    final selected = await showModalBottomSheet<RegionOverview>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * .6,
+          child: ListView(
+            children: [
+              const ListTile(
+                title: Text(
+                  '지역 선택',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.my_location),
+                title: const Text('현재 위치로 이동'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _locate();
+                },
+              ),
+              for (final region in regions)
+                ListTile(
+                  title: Text(region.name),
+                  trailing: Text('${region.postCount}개'),
+                  selected: region.areaCode == _areaCode,
+                  onTap: () => Navigator.pop(context, region),
+                ),
+            ],
           ),
-          IconButton(
-            tooltip: '알림',
-            onPressed: () => context.push('/notifications'),
-            icon: const Icon(Icons.notifications_none),
-          ),
-        ],
+        ),
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(regionsProvider);
-          ref.invalidate(homePopularPostsProvider);
-        },
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
-          children: [
-            Text(
-              '어디의 순간을 볼까요?',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 48,
-              child: regions.when(
-                loading: () => const Align(
-                  alignment: Alignment.centerLeft,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                error: (error, _) => TextButton(
-                  onPressed: () => ref.invalidate(regionsProvider),
-                  child: Text('지역 다시 불러오기 · $error'),
-                ),
-                data: (items) => ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: items.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
-                  itemBuilder: (context, index) => ActionChip(
-                    label: Text(items[index].name),
-                    onPressed: () =>
-                        context.push('/regions/${items[index].areaCode}'),
+    );
+    if (selected != null && mounted) _select(selected);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final regions = ref.watch(mapRegionsProvider);
+    final items = regions.value ?? const <RegionOverview>[];
+    final selected = items
+        .where((region) => region.areaCode == _areaCode)
+        .firstOrNull;
+    final expanded = selected != null && _extent > .82;
+    final markers = <Marker>{};
+    for (final region in items) {
+      if (region.latitude == null || region.longitude == null) continue;
+      final bitmap = ref
+          .watch(
+            countMarkerProvider((
+              count: region.postCount,
+              selected: region.areaCode == _areaCode,
+            )),
+          )
+          .value;
+      if (bitmap == null) continue;
+      markers.add(
+        Marker(
+          markerId: MarkerId('region-${region.areaCode}'),
+          position: LatLng(region.latitude!, region.longitude!),
+          icon: bitmap,
+          anchor: const Offset(.5, .5),
+          consumeTapEvents: true,
+          infoWindow: InfoWindow(
+            title: region.name,
+            snippet: '게시글 ${region.postCount}개',
+          ),
+          onTap: () => _select(region),
+        ),
+      );
+    }
+
+    return PopScope(
+      canPop: selected == null,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _areaCode != null) setState(() => _areaCode = null);
+      },
+      child: Scaffold(
+        body: SafeArea(
+          bottom: false,
+          child: LayoutBuilder(
+            builder: (context, constraints) => Stack(
+              children: [
+                Positioned.fill(
+                  child: SnapMap(
+                    markers: markers,
+                    onCreated: (controller) => _map = controller,
+                    myLocationEnabled: _locationGranted,
+                    onTap: (_) {
+                      if (selected != null) setState(() => _areaCode = null);
+                    },
+                    padding: EdgeInsets.only(
+                      top: expanded ? 0 : 60,
+                      bottom: selected == null
+                          ? 0
+                          : constraints.maxHeight * _extent,
+                    ),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 28),
-            Text('이번 주 인기 사진', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 12),
-            posts.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => ListTile(
-                leading: const Icon(Icons.cloud_off_outlined),
-                title: const Text('인기 사진을 불러오지 못했어요'),
-                subtitle: Text('$error'),
-                trailing: const Icon(Icons.refresh),
-                onTap: () => ref.invalidate(homePopularPostsProvider),
-              ),
-              data: (items) => items.isEmpty
-                  ? const ListTile(title: Text('아직 등록된 사진이 없어요.'))
-                  : CommunityPostCard(
-                      post: items.first,
-                      onTap: () =>
-                          context.push('/photos/${items.first.postId}'),
+                if (!expanded)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: Material(
+                      color: Colors.white,
+                      child: SizedBox(
+                        height: 52,
+                        child: Row(
+                          children: [
+                            const SizedBox(width: 16),
+                            const Text(
+                              'SnapHere',
+                              style: TextStyle(
+                                fontSize: 21,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Flexible(
+                              child: TextButton(
+                                style: TextButton.styleFrom(
+                                  backgroundColor: AppColors.surface,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                  ),
+                                  minimumSize: const Size(0, 30),
+                                ),
+                                onPressed: () => _chooseRegion(items),
+                                child: Text(
+                                  '📍 ${selected?.name ?? '지역 선택'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              tooltip: '알림',
+                              onPressed: () => context.push('/notifications'),
+                              icon: const DesignIcon('bell', size: 20),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
+                  ),
+                if (regions.isLoading)
+                  const Positioned(
+                    top: 52,
+                    left: 0,
+                    right: 0,
+                    child: LinearProgressIndicator(),
+                  ),
+                if (regions.hasError)
+                  Positioned(
+                    top: 64,
+                    left: 16,
+                    right: 16,
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: RetryMessage(
+                          message: '지역 데이터를 불러오지 못했어요',
+                          onRetry: () => ref.invalidate(mapRegionsProvider),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (regions.hasValue && items.isEmpty)
+                  const Positioned(
+                    top: 64,
+                    left: 16,
+                    right: 16,
+                    child: Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Text('등록된 지역이 없어요.'),
+                      ),
+                    ),
+                  ),
+                if (selected != null && !expanded)
+                  Positioned(
+                    top: 68,
+                    left: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.textPrimary,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${selected.name} 선택 · 게시글 ${selected.postCount}개',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (selected == null)
+                  Positioned(
+                    right: 16,
+                    bottom: 20,
+                    child: Column(
+                      children: [
+                        FloatingActionButton.small(
+                          heroTag: 'regions',
+                          tooltip: '지역 목록',
+                          onPressed: () => _chooseRegion(items),
+                          child: const Icon(Icons.list),
+                        ),
+                        const SizedBox(height: 8),
+                        FloatingActionButton.small(
+                          heroTag: 'locate',
+                          tooltip: '현재 위치',
+                          onPressed: _locating ? null : _locate,
+                          child: _locating
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.my_location),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (selected != null)
+                  NotificationListener<DraggableScrollableNotification>(
+                    onNotification: (notification) {
+                      if ((notification.extent - _extent).abs() > .003) {
+                        setState(() => _extent = notification.extent);
+                      }
+                      return false;
+                    },
+                    child: DraggableScrollableSheet(
+                      controller: _sheet,
+                      key: ValueKey(selected.areaCode),
+                      initialChildSize: .58,
+                      minChildSize: .25,
+                      maxChildSize: .90,
+                      snap: true,
+                      snapSizes: const [.58],
+                      builder: (_, controller) => RegionPostsSheet(
+                        region: selected,
+                        scrollController: controller,
+                        onClose: () => setState(() => _areaCode = null),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(height: 28),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.movie_filter_outlined),
-              title: const Text('K-컬처 촬영지'),
-              subtitle: const Text('드라마·영화·예능 속 장소를 둘러보세요.'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push('/k-culture'),
-            ),
-          ],
+          ),
         ),
       ),
     );

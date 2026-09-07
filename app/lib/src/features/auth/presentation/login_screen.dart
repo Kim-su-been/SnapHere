@@ -15,74 +15,117 @@ class LoginScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: Colors.white,
+      appBar: context.canPop()
+          ? AppBar(leading: BackButton(onPressed: () => context.pop()))
+          : null,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 120, 24, 40),
-          child: Column(
-            children: [
-              const AuthAppLogo(),
-              const Spacer(),
-              if (errorMessage != null) ...[
-                _LoginError(message: errorMessage),
-                const SizedBox(height: 16),
-              ],
-              IgnorePointer(
-                ignoring: auth.isLoading,
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: SignInButton(
-                    Buttons.google,
-                    key: const ValueKey('google-sign-in'),
-                    text: 'Google로 계속하기',
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: const BorderSide(
-                        color: AuthColors.border,
-                        width: 1.5,
-                      ),
-                    ),
-                    textStyle: const TextStyle(
-                      color: AuthColors.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    onPressed: () => ref
-                        .read(authControllerProvider.notifier)
-                        .signInWithGoogle(),
-                  ),
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: (constraints.maxHeight - 56).clamp(
+                  0.0,
+                  double.infinity,
                 ),
               ),
-              const SizedBox(height: 20),
-              AuthTextLink(
-                label: '로그인 없이 둘러보기',
-                onTap: auth.isLoading
-                    ? () {}
-                    : () => ref
-                          .read(authControllerProvider.notifier)
-                          .continueAsGuest(),
+              child: IntrinsicHeight(
+                child: Column(
+                  children: [
+                    const AuthAppLogo(),
+                    const Spacer(),
+                    if (errorMessage != null) ...[
+                      _LoginError(message: errorMessage),
+                      const SizedBox(height: 16),
+                    ],
+                    if (auth.isLoading) ...[
+                      const Center(
+                        child: CircularProgressIndicator(
+                          semanticsLabel: '로그인 중',
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    IgnorePointer(
+                      ignoring: auth.isLoading,
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: SignInButton(
+                          Buttons.google,
+                          key: const ValueKey('google-sign-in'),
+                          text: 'Google로 계속하기',
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: const BorderSide(
+                              color: AuthColors.border,
+                              width: 1.5,
+                            ),
+                          ),
+                          textStyle: const TextStyle(
+                            color: AuthColors.textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          onPressed: () async {
+                            final completed = await ref
+                                .read(authControllerProvider.notifier)
+                                .signInWithGoogle();
+                            if (!context.mounted || completed) return;
+                            if (!ref.read(authControllerProvider).hasError) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    '로그인이 완료되지 않았어요. 계정을 선택하고 다시 시도해 주세요.',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    AuthTextLink(
+                      label: '로그인 없이 둘러보기',
+                      onTap: auth.isLoading
+                          ? () {}
+                          : () async {
+                              await ref
+                                  .read(authControllerProvider.notifier)
+                                  .continueAsGuest();
+                              if (!context.mounted) return;
+                              if (context.canPop()) {
+                                context.pop();
+                              } else {
+                                context.go('/home');
+                              }
+                            },
+                    ),
+                    const SizedBox(height: 24),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 4,
+                      children: [
+                        AuthTextLink(
+                          label: '서비스 이용약관',
+                          onTap: () => context.push('/legal/terms'),
+                        ),
+                        const Text(
+                          '·',
+                          style: TextStyle(color: AuthColors.textSecondary),
+                        ),
+                        AuthTextLink(
+                          label: '개인정보 처리방침',
+                          onTap: () => context.push('/legal/privacy-policy'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 24),
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 4,
-                children: [
-                  AuthTextLink(
-                    label: '서비스 이용약관',
-                    onTap: () => context.push('/legal/terms'),
-                  ),
-                  const Text(
-                    '·',
-                    style: TextStyle(color: AuthColors.textSecondary),
-                  ),
-                  AuthTextLink(
-                    label: '개인정보 처리방침',
-                    onTap: () => context.push('/legal/privacy-policy'),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),

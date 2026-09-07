@@ -1,6 +1,7 @@
 package com.snaphere.snap_here
 
 import android.os.Build
+import android.content.pm.PackageManager
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
@@ -13,6 +14,17 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.snaphere.snap_here/maps")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "configure") {
+                    @Suppress("DEPRECATION")
+                    val info = packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA)
+                    val key = info.metaData?.getString("com.google.android.geo.API_KEY").orEmpty()
+                    result.success(key.isNotBlank() && !key.startsWith("your_"))
+                } else {
+                    result.notImplemented()
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, systemUiChannel)
             .setMethodCallHandler { call, result ->
                 when (call.method) {

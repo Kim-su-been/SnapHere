@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snap_here/src/app/router/app_shell.dart';
+import 'package:snap_here/src/app/router/login_navigation.dart';
 import 'package:snap_here/src/core/ui/feature_placeholder.dart';
 import 'package:snap_here/src/features/auth/application/auth_controller.dart';
 import 'package:snap_here/src/features/auth/domain/auth_models.dart';
@@ -10,6 +11,7 @@ import 'package:snap_here/src/features/auth/presentation/login_screen.dart';
 import 'package:snap_here/src/features/auth/presentation/login_required_screen.dart';
 import 'package:snap_here/src/features/auth/presentation/onboarding_screen.dart';
 import 'package:snap_here/src/features/auth/presentation/profile_setup_screen.dart';
+import 'package:snap_here/src/features/badges/presentation/badge_collection_screen.dart';
 import 'package:snap_here/src/features/community/presentation/community_screen.dart';
 import 'package:snap_here/src/features/community/presentation/community_search_screen.dart';
 import 'package:snap_here/src/features/event/presentation/event_detail_screen.dart';
@@ -18,6 +20,8 @@ import 'package:snap_here/src/features/home/presentation/home_screen.dart';
 import 'package:snap_here/src/features/map/presentation/map_screen.dart';
 import 'package:snap_here/src/features/profile/presentation/profile_screen.dart';
 import 'package:snap_here/src/features/rankings/presentation/rankings_screen.dart';
+import 'package:snap_here/src/features/social/data/api_social_repository.dart';
+import 'package:snap_here/src/features/social/presentation/connections_screen.dart';
 import 'package:snap_here/src/features/upload/presentation/upload_screen.dart';
 
 final _authRouterRefreshProvider = Provider<_AuthRouterRefresh>((ref) {
@@ -48,19 +52,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (session.isGuest) {
-        if (isEntry || path == '/profile-setup') return '/home';
+        if (path == '/onboarding' || path == '/profile-setup') return '/home';
         const guestProtected = {'/upload', '/notifications', '/profile'};
-        if (guestProtected.contains(path)) return '/login-required';
+        if (guestProtected.contains(path) || path.startsWith('/profile/')) {
+          return loginPromptLocation(state.uri.toString());
+        }
         return null;
       }
 
       if (session.user!.needsProfileSetup) {
         if (path == '/profile-setup' || isLegal) return null;
-        return '/profile-setup';
+        return Uri(
+          path: '/profile-setup',
+          queryParameters: {
+            'from': loginReturnLocation(state.uri.queryParameters['from']),
+          },
+        ).toString();
       }
 
       if (isEntry || path == '/profile-setup' || path == '/login-required') {
-        return '/home';
+        return loginReturnLocation(state.uri.queryParameters['from']);
       }
       return null;
     },
@@ -73,7 +84,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/login-required',
-        builder: (_, _) => const LoginRequiredScreen(),
+        pageBuilder: (_, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          opaque: false,
+          barrierColor: const Color(0x990F1720),
+          barrierLabel: '로그인 안내',
+          transitionsBuilder: (_, animation, _, child) =>
+              FadeTransition(opacity: animation, child: child),
+          child: LoginRequiredScreen(
+            returnTo: state.uri.queryParameters['from'],
+          ),
+        ),
       ),
       GoRoute(
         path: '/legal/:type',
@@ -119,6 +140,33 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/profile',
                 builder: (_, _) => const ProfileScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'badges',
+                    builder: (_, _) => const BadgeCollectionScreen(),
+                  ),
+                ],
+              ),
+              GoRoute(
+                path: '/users/:userId',
+                builder: (_, state) =>
+                    ProfileScreen(userId: state.pathParameters['userId']!),
+                routes: [
+                  GoRoute(
+                    path: 'followers',
+                    builder: (_, state) => ConnectionsScreen(
+                      userId: state.pathParameters['userId']!,
+                      kind: ConnectionKind.followers,
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'following',
+                    builder: (_, state) => ConnectionsScreen(
+                      userId: state.pathParameters['userId']!,
+                      kind: ConnectionKind.following,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

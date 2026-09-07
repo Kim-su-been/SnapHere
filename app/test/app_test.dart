@@ -7,8 +7,20 @@ import 'package:snap_here/src/features/auth/data/fake_auth_repository.dart';
 import 'package:snap_here/src/features/auth/data/google_identity_client.dart';
 import 'package:snap_here/src/features/auth/data/session_store.dart';
 import 'package:snap_here/src/features/home/presentation/home_screen.dart';
+import 'package:snap_here/src/features/explore/application/explore_providers.dart';
+import 'package:snap_here/src/features/map/application/map_configuration.dart';
+import 'package:snap_here/src/features/auth/presentation/onboarding_screen.dart';
 
 void main() {
+  testWidgets(
+    'cold-start zero-height viewport does not produce negative constraints',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(412, 1));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(const MaterialApp(home: OnboardingScreen()));
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets('auth and permission flow reaches the main navigation shell', (
     tester,
   ) async {
@@ -18,6 +30,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          // 이 테스트는 인증·라우팅만 검증한다. 네이티브 지도와 HTTP는 개별 테스트에서 검증한다.
+          mapConfiguredProvider.overrideWith((_) async => false),
+          mapRegionsProvider.overrideWith((_) async => const []),
           authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
           googleIdentityClientProvider.overrideWithValue(
             const FakeGoogleIdentityClient(),
