@@ -10,6 +10,7 @@ import 'package:snap_here/src/features/auth/presentation/login_screen.dart';
 import 'package:snap_here/src/features/auth/presentation/login_required_screen.dart';
 import 'package:snap_here/src/features/auth/presentation/onboarding_screen.dart';
 import 'package:snap_here/src/features/auth/presentation/profile_setup_screen.dart';
+import 'package:snap_here/src/features/badges/presentation/badge_collection_screen.dart';
 import 'package:snap_here/src/features/community/presentation/community_screen.dart';
 import 'package:snap_here/src/features/community/presentation/community_search_screen.dart';
 import 'package:snap_here/src/features/event/presentation/event_detail_screen.dart';
@@ -123,6 +124,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/profile',
                 builder: (_, _) => const ProfileScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'badges',
+                    builder: (_, _) => const BadgeCollectionScreen(),
+                  ),
+                ],
               ),
               GoRoute(
                 path: '/users/:userId',
