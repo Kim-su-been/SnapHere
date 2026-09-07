@@ -1,159 +1,151 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:snap_here/src/app/theme/app_tokens.dart';
+import 'package:snap_here/src/core/ui/design_icon.dart';
+import 'package:snap_here/src/core/ui/paged_sliver.dart';
+import 'package:snap_here/src/core/ui/remote_image.dart';
 import 'package:snap_here/src/features/auth/application/auth_controller.dart';
 import 'package:snap_here/src/features/profile/application/profile_providers.dart';
+import 'package:snap_here/src/features/profile/domain/profile_models.dart';
+import 'package:snap_here/src/features/profile/presentation/profile_settings_sheet.dart';
 
-class ProfileScreen extends ConsumerWidget {
-  const ProfileScreen({super.key});
+/// Figma 92:1932 / 92:2173 / 92:2340.
+class ProfileScreen extends ConsumerStatefulWidget {
+  const ProfileScreen({this.userId, super.key});
+  final String? userId;
+  @override
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  int _revision = 0;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final auth = ref.watch(authControllerProvider);
-    final user = auth.value?.user;
-    final snapshot = ref.watch(profileSnapshotProvider);
+  Widget build(BuildContext context) {
+    final session = ref.watch(authControllerProvider).value;
+    final own = widget.userId == null || widget.userId == session?.user?.id;
+    final AsyncValue<ProfileSnapshot?> profile = own
+        ? ref.watch(profileSnapshotProvider)
+        : ref.watch(publicProfileProvider(widget.userId!));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('마이')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
-        children: [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: CircleAvatar(
-              backgroundImage: user?.photoUrl == null
-                  ? null
-                  : NetworkImage(user!.photoUrl!),
-              child: user?.photoUrl == null
-                  ? const Icon(Icons.person_outline)
-                  : null,
-            ),
-            title: Text(user?.nickname ?? user?.displayName ?? '회원'),
-            subtitle: Text(user?.email ?? ''),
-          ),
-          snapshot.when(
-            loading: () => const LinearProgressIndicator(),
-            error: (error, _) => ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.cloud_off_outlined),
-              title: const Text('프로필 통계를 불러오지 못했어요'),
-              subtitle: Text('$error'),
-              trailing: IconButton(
-                onPressed: () => ref.invalidate(profileSnapshotProvider),
-                icon: const Icon(Icons.refresh),
+      backgroundColor: AppColors.surface,
+      appBar: AppBar(
+        title: Text(own ? '마이' : '프로필'),
+        leading: own ? null : const DesignBackButton(),
+        toolbarHeight: 48,
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        actions: own
+            ? [
+                IconButton(
+                  tooltip: '알림',
+                  onPressed: () => context.push('/notifications'),
+                  icon: const DesignIcon('bell', size: 20),
+                ),
+                IconButton(
+                  tooltip: '설정',
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    showDragHandle: true,
+                    builder: (_) => const ProfileSettingsSheet(),
+                  ),
+                  icon: const DesignIcon('settings', size: 20),
+                ),
+              ]
+            : null,
+      ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          setState(() => _revision++);
+          if (own) {
+            ref.invalidate(profileSnapshotProvider);
+            await ref
+                .read(profileSnapshotProvider.future)
+                .then<void>((_) {}, onError: (Object _, StackTrace _) {});
+          } else {
+            ref.invalidate(publicProfileProvider(widget.userId!));
+            await ref
+                .read(publicProfileProvider(widget.userId!).future)
+                .then<void>((_) {}, onError: (Object _, StackTrace _) {});
+          }
+        },
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: profile.when(
+                loading: () => const LinearProgressIndicator(),
+                error: (_, _) => Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: RetryMessage(
+                    message: '프로필을 불러오지 못했어요',
+                    onRetry: () {
+                      if (own) {
+                        ref.invalidate(profileSnapshotProvider);
+                      } else {
+                        ref.invalidate(publicProfileProvider(widget.userId!));
+                      }
+                    },
+                  ),
+                ),
+                data: (data) => data == null
+                    ? const SizedBox.shrink()
+                    : _ProfileHeader(profile: data, own: own),
               ),
             ),
-            data: (data) => data == null
-                ? const SizedBox.shrink()
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _ProfileMetric('게시글', data.stats.postCount),
-                      _ProfileMetric('팔로워', data.stats.followerCount),
-                      _ProfileMetric('팔로잉', data.stats.followingCount),
-                      _ProfileMetric('뱃지', data.stats.badgeCount),
-                    ],
-                  ),
-          ),
-          const SizedBox(height: 24),
-          SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(value: 0, label: Text('내 사진')),
-              ButtonSegment(value: 1, label: Text('저장')),
-              ButtonSegment(value: 2, label: Text('활동')),
-            ],
-            selected: const {0},
-            onSelectionChanged: (_) {},
-          ),
-          const SizedBox(height: 24),
-          const SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text('전체 번역'),
-            subtitle: Text('사용자 게시글과 댓글을 선택한 언어로 표시'),
-            value: false,
-            onChanged: null,
-          ),
-          const Divider(height: 40),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.privacy_tip_outlined),
-            title: const Text('개인정보 처리방침'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/legal/privacy-policy'),
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.logout),
-            title: const Text('로그아웃'),
-            enabled: !auth.isLoading,
-            onTap: () => ref.read(authControllerProvider.notifier).signOut(),
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
-            title: const Text(
-              '계정 삭제',
-              style: TextStyle(color: Colors.redAccent),
-            ),
-            enabled: !auth.isLoading,
-            onTap: () => _confirmAccountDeletion(context, ref),
-          ),
-        ],
+          ],
+        ),
       ),
     );
-  }
-
-  Future<void> _confirmAccountDeletion(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    final contentAction = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('계정을 삭제할까요?'),
-        content: const Text('30일 복구 유예 후 게시물을 익명으로 보존할지, 모두 삭제할지 선택해 주세요.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'KEEP_ANONYMIZED'),
-            child: const Text('익명으로 보존'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
-            onPressed: () => Navigator.pop(context, 'DELETE_ALL'),
-            child: const Text('게시물도 삭제'),
-          ),
-        ],
-      ),
-    );
-    if (contentAction == null || !context.mounted) return;
-    try {
-      await ref
-          .read(authControllerProvider.notifier)
-          .deleteAccount(contentAction: contentAction);
-    } on Object catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(error.toString())));
-      }
-    }
   }
 }
 
-class _ProfileMetric extends StatelessWidget {
-  const _ProfileMetric(this.label, this.value);
-
-  final String label;
-  final int value;
-
+class _ProfileHeader extends StatelessWidget {
+  const _ProfileHeader({required this.profile, required this.own});
+  final ProfileSnapshot profile;
+  final bool own;
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Text('$value', style: Theme.of(context).textTheme.titleLarge),
-      Text(label, style: Theme.of(context).textTheme.bodySmall),
-    ],
+  Widget build(BuildContext context) => ColoredBox(
+    color: Colors.white,
+    child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              ProfileAvatar(url: profile.imageUrl),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      profile.nickname,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      profile.bio?.isNotEmpty == true
+                          ? profile.bio!
+                          : '아직 소개가 없어요',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
   );
 }

@@ -17,8 +17,19 @@ class ProfileStats {
 
 @immutable
 class ProfileSnapshot {
-  const ProfileSnapshot({required this.stats, this.bio});
+  const ProfileSnapshot({
+    required this.stats,
+    this.bio,
+    this.userId = '',
+    this.nickname = '여행자',
+    this.imageUrl,
+    this.isFollowing = false,
+  });
 
   final ProfileStats stats;
   final String? bio;
+  final String userId;
+  final String nickname;
+  final String? imageUrl;
+  final bool isFollowing;
 }
