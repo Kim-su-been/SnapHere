@@ -97,7 +97,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     : _ProfileHeader(profile: data, own: own),
               ),
             ),
-            if (profile.value case final data? when own) ...[
+            if (profile.value case final data?) ...[
               SliverToBoxAdapter(
                 child: own
                     ? Material(
