@@ -253,6 +253,8 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   InputDecoration _inputDecoration(String hintText) {
     return InputDecoration(
       hintText: hintText,
+      // Form fields must not inherit the app search bar's fixed 38px height.
+      constraints: const BoxConstraints(),
       contentPadding: const EdgeInsets.all(16),
       enabledBorder: const OutlineInputBorder(
         borderRadius: BorderRadius.all(Radius.circular(10)),
