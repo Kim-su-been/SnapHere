@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:snap_here/src/app/theme/app_tokens.dart';
 import 'package:snap_here/src/core/ui/paged_sliver.dart';
 import 'package:snap_here/src/features/badges/application/badge_providers.dart';
 import 'package:snap_here/src/features/badges/domain/badge_models.dart';
@@ -84,6 +85,24 @@ class _VisitMapState extends State<_VisitMap> {
                 ),
               ),
           },
+        ),
+      ),
+      Positioned(
+        top: 12,
+        right: 12,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.brand),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Text(
+              '${widget.snapshot.visitedRegionCount} / ${widget.snapshot.totalRegionCount} 지역 방문',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+          ),
         ),
       ),
       if (widget.snapshot.points.isEmpty)
