@@ -23,19 +23,29 @@ public class PlaceService {
     private final TourPlaceDetailClient details;
     private final ViewCounterService views;
     private final RecentPlaceService recentPlaces;
+    private final PlaceReadCache cache;
 
     public PlaceService(PlaceRepository places, GoogleGeocodingClient geocoder,
                         TourPlaceDetailClient details, ViewCounterService views,
-                        RecentPlaceService recentPlaces) {
+                        RecentPlaceService recentPlaces, PlaceReadCache cache) {
         this.places = places;
         this.geocoder = geocoder;
         this.details = details;
         this.views = views;
         this.recentPlaces = recentPlaces;
+        this.cache = cache;
     }
 
-    public List<PlaceDtos.Region> regions() { return places.regions(); }
-    public List<PlaceDtos.Sigungu> sigungu(int areaCode) { return places.sigungu(areaCode); }
+    public List<PlaceDtos.Region> regions() {
+        return cache.regions().orElseGet(() -> {
+            List<PlaceDtos.Region> value = places.regions(); cache.putRegions(value); return value;
+        });
+    }
+    public List<PlaceDtos.Sigungu> sigungu(int areaCode) {
+        return cache.sigungu(areaCode).orElseGet(() -> {
+            List<PlaceDtos.Sigungu> value = places.sigungu(areaCode); cache.putSigungu(areaCode,value); return value;
+        });
+    }
 
     public CursorPage<PlaceDtos.PlaceSummary> list(Integer areaCode, Integer sigunguCode,
                                                     Integer contentTypeId, String keyword,
@@ -64,10 +74,14 @@ public class PlaceService {
         PlaceRepository.PlaceRecord place = places.placeRecord(id);
         String language = language(acceptLanguage);
         ensureDetail(place, language);
-        PlaceRepository.DetailRecord detail = places.detail(id, language);
+        PlaceRepository.DetailRecord live = places.detail(id, language);
+        PlaceReadCache.DetailContent content = cachedDetail(id,language,live);
+        PlaceRepository.DetailRecord detail = new PlaceRepository.DetailRecord(content.overview(),content.tel(),content.homepage(),live.verifyRadiusM(),live.viewCount());
         if (detail.overview() == null && !"ko".equals(language)) {
             ensureDetail(place, "ko");
-            detail = places.detail(id, "ko");
+            live = places.detail(id, "ko");
+            content = cachedDetail(id,"ko",live);
+            detail = new PlaceRepository.DetailRecord(content.overview(),content.tel(),content.homepage(),live.verifyRadiusM(),live.viewCount());
             language = "ko";
         }
         java.util.UUID viewer = actor == null ? null : actor.userId();
@@ -81,6 +95,16 @@ public class PlaceService {
         recentPlaces.record(viewer, id);
         return new PlaceDtos.PlaceDetail(summary, detail.overview(), language, detail.tel(), detail.homepage(),
                 detail.verifyRadiusM(), totalViews, places.ranking(id), nearby, recent);
+    }
+
+    private PlaceReadCache.DetailContent cachedDetail(long id, String language,
+                                                       PlaceRepository.DetailRecord live) {
+        return cache.detail(id,language).orElseGet(() -> {
+            PlaceReadCache.DetailContent value = new PlaceReadCache.DetailContent(
+                    live.overview(),live.tel(),live.homepage());
+            cache.putDetail(id,language,value);
+            return value;
+        });
     }
 
     public CursorPage<PlaceDtos.PostSummary> posts(String externalId, String cursor, int size, CurrentUser actor) {
@@ -141,11 +165,15 @@ public class PlaceService {
         if (places.hasDetail(place.id(), language)) return;
         if (place.contentId() == null) {
             places.upsertDetail(place.id(), language, new TourPlaceDetailClient.Detail(null, null, null, null, null));
+            cache.evictDetail(place.id(),language);
             return;
         }
         try {
             TourPlaceDetailClient.Detail loaded = details.load(place.contentId(), language);
-            if (loaded != null) places.upsertDetail(place.id(), language, loaded);
+            if (loaded != null) {
+                places.upsertDetail(place.id(), language, loaded);
+                cache.evictDetail(place.id(),language);
+            }
         } catch (RuntimeException e) {
             if ("ko".equals(language)) throw new ApiException(ErrorCode.COMMON_503);
         }

@@ -5,9 +5,9 @@
 
 | 문서 | 파일 | 현재 버전 |
 | --- | --- | --- |
-| 요구사항 · 기능 명세서 | [specs/snaphere-requirements-spec-v1.1.5.xlsx](specs/snaphere-requirements-spec-v1.1.5.xlsx) | **v1.1.5** |
-| API 명세서 · ERD | [specs/snaphere-api-spec-v1.1.5.xlsx](specs/snaphere-api-spec-v1.1.5.xlsx) | **v1.1.5** |
-| 데이터 설계 | `04-data-design.md` · `05-erd-reference.md` · `12-db-schema.dbml` | **v1.1.5** |
+| 요구사항 · 기능 명세서 | [specs/snaphere-requirements-spec-v1.1.7.xlsx](specs/snaphere-requirements-spec-v1.1.7.xlsx) | **v1.1.7** |
+| API 명세서 · ERD | [specs/snaphere-api-spec-v1.1.7.xlsx](specs/snaphere-api-spec-v1.1.7.xlsx) | **v1.1.7** |
+| 데이터 설계 | `04-data-design.md` · `05-erd-reference.md` · `12-db-schema.dbml` | **v1.1.7** (구조 변경 없음) |
 
 > 데이터 설계 두 파일은 `docs/backend-db-design` 브랜치에 있다. 그 PR이 `develop`에 병합되면 같은 `docs/` 폴더에서 함께 보인다.
 
@@ -68,6 +68,7 @@
 | **v1.1.4** | **2026-09-03** | **요구사항 / API / 데이터 설계** | **백엔드 구현 정합.** `users` 식별자 `uuid` 정정 · `images[]` 원소 구조 정의 · `sortOrder` 기준 정정 · `places.status` 와 `reports` 운영 검토 컬럼 반영 | 요구사항 1 · API 5 · 데이터 설계 3 |
 | **v1.1.5** | **2026-09-05** | **MAP / PLC API / 데이터 설계** | **지도 백엔드 구현 정합.** 줌·폴백·500셀 제한 확정, 썸네일 URL 사전 저장, 기간 포함 cellKey, 최근접 거리 응답, 주변 장소 페이징 표기 제거 | 요구사항 5 · API 7 · 데이터 설계 3 |
 | **v1.1.6** | **2026-09-06** | **요구사항 / API / 데이터 설계** | **탈퇴 유예 중 복구 정책 반영.** 계정 정보 보존·복구 제안 및 파기 시점 정정 | 요구사항 3 · API 2 · 데이터 설계 1 |
+| **v1.1.7** | **2026-09-07** | **요구사항 / API / 데이터 설계** | **SYS-011~021 백엔드 구현 정합.** 운영 배치 5종, 신고 상태, 조회 캐시, 추적 로그, 비공개 원본·정제본 공개 경계 확정 | 요구사항 11 · API 8 · 배치 3 · 데이터 설계 구조 변경 없음 |
 
 > `v1.1.1` · `v1.1.2`는 API·DBML만 쓰던 번호다. 통합 번호 체계를 도입하면서 요구사항 명세서 기준으로는 **결번**이다.
 
@@ -328,6 +329,22 @@ API와 데이터 스키마 계약은 바꾸지 않고 개발·테스트·운영 
 | `search_logs` | 변경 | 인기 검색어 집계 용도만 명시 → 커서 없는 첫 검색만 저장하고 매일 05:20에 30일 초과 로그 삭제 | SCH-010, DEC-20260906-036~038 |
 | 검색 인덱스 | 신규 | 장소 제목 중심 인덱스 → 주소·게시글 본문 `pg_trgm` GIN, 사용자·태그 접두어, 검색 로그 기간·지역 인덱스 추가 | SCH-004~007, SCH-010 |
 
+### v1.1.7 SYS-011~021 백엔드 구현 정합 (2026-09-07)
+
+사용자 제공 28테이블 ERD 구조는 유지하고, 운영·보안 동작과 API 계약을 구현에 맞춰 구체화한다.
+
+| 대상 | 구분 | 변경 전 → 변경 후 | 근거 |
+| --- | --- | --- | --- |
+| `SYS-011` | 정정 | 백엔드 구현 대상으로 해석 가능 → Flutter 레이아웃 책임이며 이번 백엔드 범위 제외 | DEC-20260907-001 |
+| `SYS-012`~`SYS-014`, `SYS-016`, `SYS-018`, `SYS-020` | 변경 | 원칙만 명시 → 다국어 TourAPI 지연 적재, XLSX·Markdown API 문서, CORS allowlist, traceId MDC, 경량 DTO, 5분 만료 구현 기준 명시 | DEC-20260907-001 |
+| `SYS-015`, `API-ADM-001`, `JOB-002`, `JOB-009` | 변경 | 일부 배치만 실행 → 5종 수동 실행, 행사 -30일~+1년·04:30 KST 동기화, 전체 카운터 05:10 KST 보정 | DEC-20260907-002, DEC-20260907-006 |
+| `SYS-017`, `API-ADM-009`, `API-ADM-010` | 변경 | 신고 대상 4종·검토 memo·상태 해석 불일치 → POST·PLACE만, memo 제거, PENDING·RESOLVED·REJECTED 및 재처리 409 | DEC-20260907-002 |
+| `SYS-019`, `API-PLC-001`, `API-PLC-002`, `API-PLC-005` | 변경 | 조회 캐시 TTL 미정 → 시도·시군구 24시간, 비개인화 언어별 장소 상세 10분, Redis 장애 시 DB 폴백 | DEC-20260907-003, DEC-20260907-007 |
+| `SYS-021`, `API-PST-001`, `API-PST-003`, `API-PST-006`, `JOB-003` | 변경 | 후처리 전 원본 URL 노출 가능 → `originals/` 비공개 원본, 정제본만 공개, 준비 전 게시글 비공개, Redis 상태와 5분 간격 최대 5회 재시도 | DEC-20260907-004~005, DEC-20260907-007 |
+| `CreatePostResult` | 변경 | 완성된 `PostDetail` 즉시 반환 → `postId`, `mediaStatus`, 등급·방문·뱃지 결과 반환 | DEC-20260907-004 |
+| `reports.status` | 변경 | PENDING·REVIEWED → PENDING·RESOLVED·REJECTED, 기존 REVIEWED는 RESOLVED로 마이그레이션 | SYS-017, DEC-20260907-002 |
+| 데이터 설계 28테이블 | 정정 | 미디어 상태 컬럼·테이블 추가 검토 → 구조 변경 없음, 시도 횟수·처리 상태는 Redis에 보관 | DEC-20260907-005 |
+
 ## 다음 예정
 
 | 대상 | 내용 | 근거 |
@@ -338,7 +355,7 @@ API와 데이터 스키마 계약은 바꾸지 않고 개발·테스트·운영 
 | 요구사항 `MAP-025` | `sample_post_ids`와 정렬이 같은 썸네일 URL 사전 저장 여부를 다시 결정 | 사용자 제공 ERD 미결정 9, DEC-20260905-011 |
 | ~~요구사항 `SCH-011`~~, 요구사항 `VST-006` | 최근 검색어는 Redis 사용자별 최대 20개·TTL 30일로 **결정 완료**. 최근 본 장소 저장소는 후속 결정 | DEC-20260906-036, DBML 미결정 10 |
 | ~~요구사항 `RNK-013`~~ | 운영자 지정 장소 — 애플리케이션 V19의 `places.is_curated`로 **구현 완료**. 사용자 제공 독립 ERD 정본에는 포함하지 않음 | DEC-20260905-017 |
-| 요구사항 `PST-043`, `PLC-023` | 신고 대상 범위에 댓글·사용자를 넣을지 | DBML 미결정 12 |
+| ~~요구사항 `PST-043`, `PLC-023`~~ | 신고 검토 대상은 POST·PLACE로 **결정 완료** | DEC-20260907-002 |
 | 요구사항 `BDG-013` | `badges.earned_count` 비정규화 여부 | DBML 미결정 13 |
 | 요구사항 `CMU-019` | 공유 주소에 `post_id` 노출 vs `posts.share_slug` | DBML 미결정 14 |
 

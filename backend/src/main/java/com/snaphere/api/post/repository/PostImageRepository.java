@@ -41,4 +41,19 @@ public interface PostImageRepository extends JpaRepository<PostImageEntity, Long
 
     @Query("select i from PostImageEntity i, PostEntity p where i.postId=p.postId and p.userId=:userId")
     List<PostImageEntity> findByAuthorId(@Param("userId") UUID userId);
+
+    @Query(value = """
+            select p.post_id from posts p
+             where p.status='HIDDEN'
+               and exists(select 1 from post_images i where i.post_id=p.post_id and i.image_key like 'originals/%')
+             order by p.post_id limit 100
+            """, nativeQuery = true)
+    List<Long> findUnreadyPostIds();
+
+    @Query(value = """
+            select exists(select 1 from post_images i where i.post_id=:postId)
+               and not exists(select 1 from post_images i where i.post_id=:postId
+                 and (i.image_hash is null or i.thumbnail_url is null or i.image_key like 'originals/%'))
+            """, nativeQuery = true)
+    boolean isPostReady(@Param("postId") long postId);
 }

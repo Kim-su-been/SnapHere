@@ -36,9 +36,10 @@ public class AdminController {
         return ok(batches.get(ExternalIds.parse(runId,"run", ErrorCode.COMMON_404)),request); }
 
     @GetMapping("/sync-logs")
-    ApiResponse<CursorPage<BatchDtos.SyncLog>> logs(@RequestParam(required=false) String result,
+    ApiResponse<CursorPage<BatchDtos.SyncLog>> logs(@RequestParam(required=false) String jobType,
+            @RequestParam(required=false) String result,
             @RequestParam(required=false) String cursor,@RequestParam(defaultValue="20") int size,HttpServletRequest request){
-        return ok(batches.logs(result,cursor,size),request); }
+        return ok(batches.logs(jobType,result,cursor,size),request); }
 
     @PatchMapping("/places/{placeId}/verify-radius")
     ApiResponse<PlaceDtos.PlaceDetail> placeRadius(@PathVariable String placeId,@Valid @RequestBody PlaceDtos.RadiusRequest body,HttpServletRequest request){
@@ -59,6 +60,16 @@ public class AdminController {
     @PatchMapping("/reports/{reportId}")
     ApiResponse<BatchDtos.ReportResult> report(@PathVariable String reportId,@Valid @RequestBody BatchDtos.ResolveReportRequest body,HttpServletRequest request){
         return ok(admin.resolveReport(reportId,body),request); }
+
+    @GetMapping("/reports")
+    ApiResponse<CursorPage<BatchDtos.ReportResult>> reports(
+            @RequestParam(required=false) String status,
+            @RequestParam(required=false) String targetType,
+            @RequestParam(required=false) String cursor,
+            @RequestParam(defaultValue="20") int size,
+            HttpServletRequest request) {
+        return ok(admin.reports(status,targetType,cursor,size),request);
+    }
 
     @PostMapping("/places/{placeId}/moderation")
     ResponseEntity<ApiResponse<BatchDtos.BatchRun>> moderate(@PathVariable String placeId,@Valid @RequestBody BatchDtos.ModerationRequest body,HttpServletRequest request){

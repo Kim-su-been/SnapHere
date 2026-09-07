@@ -75,6 +75,8 @@ public enum ErrorCode {
     POST_PLACE_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "error.post.placeDailyLimit"),
     POST_DUPLICATE_IMAGE(HttpStatus.CONFLICT, "error.post.duplicateImage"),
     POST_UPLOAD_SUSPENDED(HttpStatus.FORBIDDEN, "error.post.uploadSuspended"),
+    POST_MEDIA_PROCESSING(HttpStatus.CONFLICT, "error.post.mediaProcessing"),
+    POST_MEDIA_FAILED(HttpStatus.CONFLICT, "error.post.mediaFailed"),
 
     // 신고·운영
     REPORT_DUPLICATE(HttpStatus.CONFLICT, "error.report.duplicate"),

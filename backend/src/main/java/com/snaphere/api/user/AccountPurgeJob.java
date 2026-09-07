@@ -6,6 +6,8 @@ import com.snaphere.api.auth.UserStatus;
 import com.snaphere.api.post.repository.PostRepository;
 import com.snaphere.api.post.repository.PostImageRepository;
 import com.snaphere.api.media.storage.MediaObjectStore;
+import com.snaphere.api.media.storage.MediaObjectKeys;
+import com.snaphere.api.post.entity.PostImageEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,11 +25,17 @@ public class AccountPurgeJob {
     @Transactional public void purgeExpired() {
         Instant now=Instant.now();
         for(User user:users.findByStatusAndPurgeScheduledAtLessThanEqual(UserStatus.WITHDRAWN,now)) {
-            images.findByAuthorId(user.getId()).forEach(image -> { try { objects.delete(image.getImageKey()); } catch (RuntimeException ignored) { } });
+            images.findByAuthorId(user.getId()).forEach(this::deleteObjects);
             posts.reassignAuthor(user.getId(),ANONYMOUS_AUTHOR_ID);
             logs.findFirstByUserIdOrderByDeletedAtDesc(user.getId()).ifPresent(log->log.markPurged(now));
             users.delete(user);
         }
     }
-    @Transactional public void purgeImmediately(User user) { images.findByAuthorId(user.getId()).forEach(image -> { try { objects.delete(image.getImageKey()); } catch (RuntimeException ignored) { } }); posts.softDeleteByUserId(user.getId(), java.time.OffsetDateTime.now()); posts.reassignAuthor(user.getId(),ANONYMOUS_AUTHOR_ID); logs.save(AccountDeletionLog.requested(user.getId(), "ADMIN_FORCE_DELETE", ContentAction.DELETE_ALL, Instant.now())); users.delete(user); }
+    @Transactional public void purgeImmediately(User user) { images.findByAuthorId(user.getId()).forEach(this::deleteObjects); posts.softDeleteByUserId(user.getId(), java.time.OffsetDateTime.now()); posts.reassignAuthor(user.getId(),ANONYMOUS_AUTHOR_ID); logs.save(AccountDeletionLog.requested(user.getId(), "ADMIN_FORCE_DELETE", ContentAction.DELETE_ALL, Instant.now())); users.delete(user); }
+    private void deleteObjects(PostImageEntity image) {
+        String key=image.getImageKey();
+        try { objects.delete(key); } catch (RuntimeException ignored) { }
+        try { objects.delete(MediaObjectKeys.privateOriginalForPublic(key)); } catch (RuntimeException ignored) { }
+        try { objects.delete(MediaObjectKeys.thumbnailForPublic(key)); } catch (RuntimeException ignored) { }
+    }
 }

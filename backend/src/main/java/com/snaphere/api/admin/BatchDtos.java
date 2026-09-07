@@ -21,10 +21,10 @@ public final class BatchDtos {
             @NotBlank @Pattern(regexp = "RESTORE|HIDE_AND_REASSIGN") String action,
             String targetPlaceId) { }
     public record ResolveReportRequest(
-            @NotBlank @Pattern(regexp = "RESTORE|HIDE|DELETE|REJECT") String action,
-            @Size(max = 1000) String memo) { }
-    public record ReportResult(String reportId, String targetType, String targetId, String status,
-                               String action, OffsetDateTime reviewedAt) { }
+            @NotBlank @Pattern(regexp = "RESTORE|HIDE|DELETE|REJECT") String action) { }
+    public record ReportResult(String reportId, String reporterId, String targetType, String targetId,
+                               String reason, String status, String action,
+                               OffsetDateTime createdAt, OffsetDateTime reviewedAt) { }
     public record AdminEventRequest(@Size(max = 200) String title, String overview,
                                     LocalDate startDate, LocalDate endDate,
                                     @Min(1) @Max(20000) Integer verifyRadiusM) { }

@@ -1,5 +1,7 @@
 package com.snaphere.api.post;
 
+import com.snaphere.api.auth.ExternalIds;
+import com.snaphere.api.common.error.ErrorCode;
 import com.snaphere.api.common.security.CurrentUser;
 import com.snaphere.api.common.security.CurrentUserProvider;
 import com.snaphere.api.common.web.ApiResponse;
@@ -93,12 +95,13 @@ public class PostQueryController {
 
     @GetMapping("/{postId}")
     public ResponseEntity<ApiResponse<PostDetailResponse>> detail(
-            @PathVariable long postId,
+            @PathVariable String postId,
             HttpServletRequest httpRequest) {
 
         Optional<UUID> viewerId = currentUserProvider.optional(httpRequest)
                 .map(CurrentUser::userId);
-        PostDetailResponse detail = postQueryService.detail(postId, viewerId);
+        PostDetailResponse detail = postQueryService.detail(
+                ExternalIds.parse(postId, "pst", ErrorCode.POST_NOT_FOUND), viewerId);
 
         return ResponseEntity.ok(ApiResponse.ok(detail,
                 TraceIdFilter.currentTraceId(httpRequest)));

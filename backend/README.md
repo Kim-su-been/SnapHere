@@ -141,6 +141,9 @@ MEDIA_S3_REGION=ap-northeast-2
 MEDIA_PUBLIC_BASE_URL=https://cdn.example.com
 ```
 
+게시글 업로드 원본은 `originals/` 접두어에 저장되며 버킷·CDN 정책에서도 공개하지 않아야 한다.
+서버는 EXIF 제거·재인코딩된 `public/` 객체와 `public/thumbs/` 객체만 공개 응답으로 반환한다.
+
 ## 지금 구현된 것
 
 ### 공통
@@ -166,8 +169,16 @@ MEDIA_PUBLIC_BASE_URL=https://cdn.example.com
 | `API-MAP-001`~`004` | `/api/v1/map/*` | 지역·히트맵·사진 마커·셀 상세 | `MAP-001`~`MAP-030` 백엔드 범위 |
 | `API-RNK-001` | `GET /api/v1/rankings/places` | 전국·지역·기간·테마·장소 유형별 사전 집계 순위 | `RNK-001`~`RNK-010` |
 | `API-RNK-002` | `GET /api/v1/recommendations/places` | 거리·지역 기반 추천과 운영자 지정 장소 폴백 | `RNK-011`~`RNK-013` |
-| `API-ADM-001`~`003` | `/api/v1/admin/batches*`, `/api/v1/admin/sync-logs` | 관리자 장소 동기화 | `PLC-008`~`PLC-010` |
+| `API-ADM-001`~`003` | `/api/v1/admin/batches*`, `/api/v1/admin/sync-logs` | 장소·행사·랭킹·히트맵·카운터 수동 실행 | `PLC-008`~`PLC-010`, `SYS-015` |
 | `API-ADM-005`~`010`, `013` | `/api/v1/admin/events*`, `/api/v1/admin/places*`, `/api/v1/admin/reports*` | 관리자 반경·신고 처리 | `PLC-022`, `PLC-023` |
+
+### SYS-011~021 운영·보안
+
+- 관광정보 상세은 `ko`, `en`, `zh-CN`, `ja`별로 지연 적재한다. 시도·시군구는 24시간, 비개인화 상세 본문은 10분 Redis 캐시를 쓰며 장애 시 DB로 폴백한다.
+- `X-Trace-Id`는 요청 헤더, 응답 헤더·본문, MDC 로그에 동일하게 남는다. CORS는 `CORS_ALLOWED_ORIGINS` allowlist만 허용한다.
+- 신고 검토 대상은 `POST`, `PLACE`이며 상태는 `PENDING`, `RESOLVED`, `REJECTED`다.
+- 게시글 사진은 비공개 원본을 정제한 뒤에만 공개한다. 실패 시 5분 간격 최대 5회 재시도하며 준비 전·최종 실패 게시글은 공개 목록에 나오지 않는다.
+- SYS-011의 텍스트 확장 레이아웃은 Flutter 후속 작업이다. API 문서는 Swagger 의존성 없이 `docs/specs` XLSX와 `docs/03-api-spec.md`를 유지한다.
 
 ### 위치 신뢰 등급 (`PST-022`~`PST-026`)
 

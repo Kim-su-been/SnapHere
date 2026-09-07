@@ -10,7 +10,8 @@ import java.util.List;
  * @param earnedBadges  이번 요청으로 획득한 뱃지. 반경 밖이어도 게시는 성공하고 이 목록만 빈다
  */
 public record CreatePostResponse(
-        PostDetailResponse post,
+        String postId,
+        String mediaStatus,
         TierResultResponse tierResult,
         boolean visitRecorded,
         List<BadgeSummaryResponse> earnedBadges

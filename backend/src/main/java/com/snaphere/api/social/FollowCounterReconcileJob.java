@@ -1,3 +1,14 @@
 package com.snaphere.api.social;
-import com.snaphere.api.auth.*; import org.springframework.scheduling.annotation.Scheduled; import org.springframework.stereotype.Component; import org.springframework.transaction.annotation.Transactional;
-@Component public class FollowCounterReconcileJob { private final FollowRepository follows; private final UserRepository users; public FollowCounterReconcileJob(FollowRepository f,UserRepository u){follows=f;users=u;} @Scheduled(cron="${snaphere.jobs.follow-counter-reconcile-cron:0 10 5 * * *}",zone="Asia/Seoul") @Transactional public void reconcile(){for(User u:users.findAll())users.replaceFollowCounts(u.getId(),Math.toIntExact(follows.followersCount(u.getId())),Math.toIntExact(follows.followingCount(u.getId())));} }
+
+import com.snaphere.api.admin.CounterReconcileService;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+/** 모든 비정규화 카운터를 매일 함께 보정한다. */
+@Component
+public class FollowCounterReconcileJob {
+    private final CounterReconcileService counters;
+    public FollowCounterReconcileJob(CounterReconcileService counters) { this.counters = counters; }
+    @Scheduled(cron="${snaphere.jobs.counter-reconcile-cron:0 10 5 * * *}",zone="Asia/Seoul")
+    public void reconcile() { counters.reconcile(); }
+}

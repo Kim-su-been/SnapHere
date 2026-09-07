@@ -21,6 +21,7 @@ public class MediaUrlResolver {
     }
 
     public String publicUrl(String objectKey) {
+        if (objectKey == null || MediaObjectKeys.isPrivateOriginal(objectKey)) return null;
         String base = properties.publicBaseUrl();
         if (base == null || base.isBlank()) {
             // 로컬 개발에서는 CDN 주소가 없다. 앱이 상대 경로를 그대로 붙일 수 있게 키를 준다.
@@ -39,7 +40,7 @@ public class MediaUrlResolver {
         if (objectKey == null) {
             return false;
         }
-        String expected = MediaPurpose.POST_IMAGE.keyPrefix() + "/" + userId + "/";
+        String expected = "originals/" + MediaPurpose.POST_IMAGE.keyPrefix() + "/" + userId + "/";
         return objectKey.startsWith(expected)
                 && objectKey.length() > expected.length()
                 && !objectKey.substring(expected.length()).contains("/");
