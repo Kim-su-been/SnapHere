@@ -26,6 +26,20 @@ class ApiSocialRepository {
   final ApiClient _api;
   final String? accessToken;
 
+  Future<bool> setFollowing(String userId, {required bool following}) async {
+    if (accessToken == null) {
+      throw const ApiException('로그인이 필요합니다.', statusCode: 401);
+    }
+    final data = jsonMap(
+      await _api.request(
+        following ? 'PUT' : 'DELETE',
+        '/users/$userId/follow',
+        accessToken: accessToken,
+      ),
+    );
+    return data['isFollowing']! as bool;
+  }
+
   Future<CursorPage<SocialUser>> fetchConnections(
     String userId,
     ConnectionKind kind, {

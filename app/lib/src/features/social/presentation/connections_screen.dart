@@ -8,6 +8,7 @@ import 'package:snap_here/src/core/ui/remote_image.dart';
 import 'package:snap_here/src/features/profile/application/profile_providers.dart';
 import 'package:snap_here/src/features/social/application/social_providers.dart';
 import 'package:snap_here/src/features/social/data/api_social_repository.dart';
+import 'package:snap_here/src/features/social/presentation/follow_button.dart';
 
 class ConnectionsScreen extends ConsumerStatefulWidget {
   const ConnectionsScreen({
@@ -119,7 +120,11 @@ class _ConnectionsScreenState extends ConsumerState<ConnectionsScreen> {
                                   ],
                                 ),
                               ),
-                              Text(user.isFollowing ? '팔로잉' : '팔로우'),
+                              const SizedBox(width: 8),
+                              FollowButton(
+                                userId: user.userId,
+                                initialFollowing: user.isFollowing,
+                              ),
                             ],
                           ),
                         ),

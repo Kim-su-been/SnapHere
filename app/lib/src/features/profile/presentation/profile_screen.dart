@@ -10,6 +10,7 @@ import 'package:snap_here/src/features/community/domain/community_models.dart';
 import 'package:snap_here/src/features/profile/application/profile_providers.dart';
 import 'package:snap_here/src/features/profile/domain/profile_models.dart';
 import 'package:snap_here/src/features/profile/presentation/profile_settings_sheet.dart';
+import 'package:snap_here/src/features/social/presentation/follow_button.dart';
 
 /// Figma 92:1932 / 92:2173 / 92:2340.
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -264,6 +265,14 @@ class _ProfileHeader extends StatelessWidget {
               ],
             ),
           ),
+          if (!own) ...[
+            const SizedBox(height: 16),
+            FollowButton(
+              userId: profile.userId,
+              initialFollowing: profile.isFollowing,
+              fullWidth: true,
+            ),
+          ],
         ],
       ),
     ),
