@@ -1,6 +1,7 @@
 package com.snaphere.api.map;
 
 import com.snaphere.api.common.error.ApiException;
+import com.snaphere.api.place.PlaceDtos;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
@@ -65,6 +66,23 @@ class MapServiceTest {
         assertThat(result.truncated()).isTrue();
         assertThat(result.maxCount()).isEqualTo(501);
         assertThat(result.cells().getFirst().intensity()).isEqualTo(1d);
+    }
+
+    @Test
+    void 대표_게시글이_없는_지역도_정상_반환한다() {
+        MapRepository repository = mock(MapRepository.class);
+        MapCache cache = mock(MapCache.class);
+        PlaceDtos.Region region = new PlaceDtos.Region(1, "서울", "Seoul", null, 2000);
+        when(repository.regions(MapPeriod.WEEKLY))
+                .thenReturn(List.of(new MapRepository.RegionRow(region, 0, 0, null)));
+
+        List<MapDtos.MapRegion> result = service(repository, cache)
+                .regions("WEEKLY", Optional.empty());
+
+        assertThat(result).singleElement().satisfies(item -> {
+            assertThat(item.region()).isEqualTo(region);
+            assertThat(item.representativePost()).isNull();
+        });
     }
 
     private static MapService service(MapRepository repository, MapCache cache) {

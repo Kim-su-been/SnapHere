@@ -319,10 +319,10 @@ class _GalleryStep extends ConsumerWidget {
                         return InkWell(
                           key: const Key('upload-camera-tile'),
                           onTap: () async {
-                            if (state.selectedPhotoIds.length >= 10) {
+                            if (state.selectedPhotoIds.length >= 4) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('사진은 최대 10장까지 선택할 수 있어요.'),
+                                  content: Text('사진은 최대 4장까지 선택할 수 있어요.'),
                                 ),
                               );
                               return;
@@ -339,7 +339,7 @@ class _GalleryStep extends ConsumerWidget {
                               if (!added && context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('사진은 최대 10장까지 선택할 수 있어요.'),
+                                    content: Text('사진은 최대 4장까지 선택할 수 있어요.'),
                                   ),
                                 );
                               }
@@ -362,11 +362,10 @@ class _GalleryStep extends ConsumerWidget {
                         photo: photo,
                         order: order < 0 ? null : order + 1,
                         onTap: () {
-                          if (order < 0 &&
-                              state.selectedPhotoIds.length >= 10) {
+                          if (order < 0 && state.selectedPhotoIds.length >= 4) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('사진은 최대 10장까지 선택할 수 있어요.'),
+                                content: Text('사진은 최대 4장까지 선택할 수 있어요.'),
                               ),
                             );
                             return;
@@ -434,7 +433,7 @@ class _ReviewStep extends ConsumerWidget {
               ),
               const SizedBox(height: 20),
               Text(
-                '선택한 사진 (${state.selectedPhotoIds.length}/10)',
+                '선택한 사진 (${state.selectedPhotoIds.length}/4)',
                 style: Theme.of(context).textTheme.labelLarge
                     ?.copyWith(color: AppColors.textSecondary),
               ),

@@ -1,17 +1,15 @@
-import 'dart:convert';
+import 'dart:io';
 
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:photo_manager/photo_manager.dart';
-import 'package:snap_here/src/features/upload/data/fake_upload_repository.dart';
+import 'package:snap_here/src/core/network/api_client.dart';
 import 'package:snap_here/src/features/upload/domain/upload_models.dart';
 import 'package:snap_here/src/features/upload/domain/upload_repository.dart';
 
 class UploadPermissionException implements Exception {
   const UploadPermissionException(this.message);
   final String message;
-
   @override
   String toString() => message;
 }
@@ -19,31 +17,21 @@ class UploadPermissionException implements Exception {
 class UploadLocationException implements Exception {
   const UploadLocationException(this.message);
   final String message;
-
   @override
   String toString() => message;
 }
 
-/// 기기 미디어·GPS·Google Places를 사용하고, 게시 API가 준비되기 전까지는
-/// 생성 요청만 [FakeUploadRepository]에 위임한다.
 class DeviceUploadRepository implements UploadRepository {
-  DeviceUploadRepository({http.Client? httpClient, String? googleMapsApiKey})
-    : _httpClient = httpClient ?? http.Client(),
-      _googleMapsApiKey = googleMapsApiKey ?? _configuredGoogleMapsApiKey();
+  DeviceUploadRepository({
+    required this.accessToken,
+    http.Client? httpClient,
+    ApiClient? api,
+  }) : _httpClient = httpClient ?? http.Client(),
+       _api = api ?? ApiClient(client: httpClient);
 
-  static const _placesHost = 'https://places.googleapis.com/v1';
-
+  final String? accessToken;
   final http.Client _httpClient;
-  final String _googleMapsApiKey;
-  final FakeUploadRepository _fallback = FakeUploadRepository();
-
-  static String _configuredGoogleMapsApiKey() {
-    if (dotenv.isInitialized) {
-      final envKey = dotenv.maybeGet('GOOGLE_MAPS_API_KEY')?.trim();
-      if (envKey != null && envKey.isNotEmpty) return envKey;
-    }
-    return const String.fromEnvironment('GOOGLE_MAPS_API_KEY');
-  }
+  final ApiClient _api;
 
   @override
   Future<List<UploadPhoto>> fetchGallery() async {
@@ -53,7 +41,6 @@ class DeviceUploadRepository implements UploadRepository {
         '사진 보관함 권한이 필요합니다. 기기 설정에서 사진 접근을 허용해 주세요.',
       );
     }
-
     final entities = await PhotoManager.getAssetListPaged(
       page: 0,
       pageCount: 60,
@@ -86,99 +73,48 @@ class DeviceUploadRepository implements UploadRepository {
 
   @override
   Future<List<UploadPlace>> matchPlaces(UploadPhoto photo) async {
-    final point = photo.hasLocationMetadata
-        ? Position(
-            longitude: photo.longitude!,
-            latitude: photo.latitude!,
-            timestamp: DateTime.now(),
-            accuracy: 0,
-            altitude: 0,
-            altitudeAccuracy: 0,
-            heading: 0,
-            headingAccuracy: 0,
-            speed: 0,
-            speedAccuracy: 0,
-          )
-        : await _currentPosition();
-    _requirePlacesKey();
-
-    final response = await _httpClient.post(
-      Uri.parse('$_placesHost/places:searchNearby'),
-      headers: _headers(
-        'places.id,places.displayName,places.formattedAddress,places.location',
-      ),
-      body: jsonEncode({
-        'languageCode': 'ko',
-        'maxResultCount': 5,
-        'rankPreference': 'DISTANCE',
-        'locationRestriction': {
-          'circle': {
-            'center': {
-              'latitude': point.latitude,
-              'longitude': point.longitude,
-            },
-            'radius': 1500.0,
-          },
+    final position = photo.hasLocationMetadata
+        ? (latitude: photo.latitude!, longitude: photo.longitude!)
+        : await _currentCoordinates();
+    final result = jsonMap(
+      await _api.get(
+        '/places/nearby',
+        query: {
+          'lat': '${position.latitude}',
+          'lng': '${position.longitude}',
+          'radiusM': '1500',
         },
-      }),
+        accessToken: accessToken,
+      ),
     );
-    return _parsePlaces(response, origin: point);
+    final values = <Map<String, Object?>>[
+      if (result['exactMatch'] is Map) jsonMap(result['exactMatch']),
+      ...jsonMapList(result['candidates']),
+    ];
+    return values.map(_place).toList(growable: false);
   }
 
   @override
   Future<List<UploadPlace>> searchPlaces(String keyword) async {
     if (keyword.trim().isEmpty) return const [];
-    if (_googleMapsApiKey.isEmpty) {
-      return _fallback.searchPlaces(keyword);
-    }
-    final response = await _httpClient.post(
-      Uri.parse('$_placesHost/places:searchText'),
-      headers: _headers('places.id,places.displayName,places.formattedAddress'),
-      body: jsonEncode({
-        'textQuery': keyword.trim(),
-        'languageCode': 'ko',
-        'pageSize': 10,
-      }),
+    final page = jsonMap(
+      await _api.get(
+        '/places',
+        query: {'keyword': keyword.trim(), 'size': '20'},
+        accessToken: accessToken,
+      ),
     );
-    return _parsePlaces(response);
+    return jsonMapList(page['items']).map(_place).toList(growable: false);
   }
 
-  Map<String, String> _headers(String fieldMask) => {
-    'Content-Type': 'application/json',
-    'X-Goog-Api-Key': _googleMapsApiKey,
-    'X-Goog-FieldMask': fieldMask,
-  };
+  UploadPlace _place(Map<String, Object?> json) => UploadPlace(
+    id: json['placeId']! as String,
+    name: json['title']! as String,
+    address: json['addr1'] as String? ?? '',
+    distanceMeters: (json['distanceM'] as num?)?.toInt(),
+  );
 
-  List<UploadPlace> _parsePlaces(http.Response response, {Position? origin}) {
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw UploadLocationException(
-        'Google Places 장소 검색에 실패했습니다. (${response.statusCode})',
-      );
-    }
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final places = body['places'] as List<dynamic>? ?? const [];
-    return places.map((raw) {
-      final json = raw as Map<String, dynamic>;
-      final location = json['location'] as Map<String, dynamic>?;
-      final distance = origin == null || location == null
-          ? null
-          : Geolocator.distanceBetween(
-              origin.latitude,
-              origin.longitude,
-              (location['latitude'] as num).toDouble(),
-              (location['longitude'] as num).toDouble(),
-            ).round();
-      final displayName = json['displayName'] as Map<String, dynamic>?;
-      return UploadPlace(
-        id: json['id'] as String,
-        name: displayName?['text'] as String? ?? '이름 없는 장소',
-        address: json['formattedAddress'] as String? ?? '',
-        distanceMeters: distance,
-      );
-    }).toList();
-  }
-
-  Future<Position> _currentPosition() async {
+  Future<({double latitude, double longitude})> _currentCoordinates() async {
     if (!await Geolocator.isLocationServiceEnabled()) {
       throw const UploadLocationException('기기의 위치 서비스를 켜 주세요.');
     }
@@ -192,42 +128,110 @@ class DeviceUploadRepository implements UploadRepository {
         '위치 권한이 없어 자동 매칭할 수 없습니다. 장소를 직접 검색해 주세요.',
       );
     }
-    return Geolocator.getCurrentPosition(
+    final value = await Geolocator.getCurrentPosition(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
         timeLimit: Duration(seconds: 12),
       ),
     );
-  }
-
-  void _requirePlacesKey() {
-    if (_googleMapsApiKey.isEmpty) {
-      throw const UploadLocationException(
-        'GOOGLE_MAPS_API_KEY가 설정되지 않아 자동 장소 매칭을 사용할 수 없습니다.',
-      );
-    }
+    return (latitude: value.latitude, longitude: value.longitude);
   }
 
   @override
   Future<UploadResult> createPost(UploadDraft draft) async {
-    final resolvedPhotos = await Future.wait(
-      draft.photos.map(_resolveOriginal),
-    );
-    final primary = resolvedPhotos.firstWhere(
-      (photo) => photo.id == draft.primaryPhoto.id,
-    );
-    return _fallback.createPost(
-      UploadDraft(
-        photos: resolvedPhotos,
-        primaryPhoto: primary,
-        title: draft.title,
-        description: draft.description,
-        place: draft.place,
-        eventId: draft.eventId,
-        fixedTags: draft.fixedTags,
-        userTags: draft.userTags,
+    final token = accessToken;
+    if (token == null) {
+      throw const UploadPermissionException('로그인이 필요한 기능입니다.');
+    }
+    final photos = await Future.wait(draft.photos.map(_resolveOriginal));
+    final files = await Future.wait(photos.map(_fileInfo));
+    final issued = jsonMapList(
+      await _api.post(
+        '/media/presigned-urls',
+        accessToken: token,
+        body: {
+          'purpose': 'POST_IMAGE',
+          'files': [
+            for (final file in files)
+              {'mimeType': file.mimeType, 'sizeBytes': file.bytes.length},
+          ],
+        },
       ),
     );
+    for (var index = 0; index < issued.length; index++) {
+      final target = issued[index];
+      final url = target['uploadUrl']! as String;
+      if (Uri.parse(url).queryParameters['stub-presign'] == 'true') continue;
+      final headers = Map<String, String>.from(target['headers'] as Map? ?? {});
+      final response = await _httpClient.put(
+        Uri.parse(url),
+        headers: headers,
+        body: files[index].bytes,
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw ApiException('사진 업로드에 실패했습니다. (${response.statusCode})');
+      }
+    }
+    final primary = photos.firstWhere(
+      (photo) => photo.id == draft.primaryPhoto.id,
+    );
+    final data = jsonMap(
+      await _api.post(
+        '/posts',
+        accessToken: token,
+        body: {
+          'placeId': int.parse(draft.place.id.replaceFirst('plc_', '')),
+          if (draft.eventId != null)
+            'eventId': int.parse(draft.eventId!.replaceFirst('evt_', '')),
+          'content': [
+            draft.title,
+            draft.description,
+          ].where((value) => value.isNotEmpty).join('\n'),
+          'originalLanguageCode': 'ko',
+          'images': [
+            for (var index = 0; index < issued.length; index++)
+              {
+                'imageKey': issued[index]['imageKey'],
+                'sortOrder': index + 1,
+                'aspectRatio': photos[index].aspectRatio,
+              },
+          ],
+          'tagNames': [...draft.fixedTags, ...draft.userTags],
+          'source': primary.source == UploadPhotoSource.camera
+              ? 'CAMERA'
+              : 'ALBUM',
+          if (primary.source == UploadPhotoSource.camera)
+            'takenAt': DateTime.now().toUtc().toIso8601String(),
+          if (primary.latitude != null) 'lat': primary.latitude,
+          if (primary.longitude != null) 'lng': primary.longitude,
+        },
+      ),
+    );
+    final post = jsonMap(data['post']);
+    final summary = jsonMap(post['summary']);
+    final badges = jsonMapList(data['earnedBadges']);
+    return UploadResult(
+      postId: summary['postId']! as String,
+      badgeTitle: badges.isEmpty ? null : badges.first['name'] as String?,
+      badgeDescription: badges.isEmpty
+          ? null
+          : badges.first['description'] as String?,
+    );
+  }
+
+  Future<({List<int> bytes, String mimeType})> _fileInfo(
+    UploadPhoto photo,
+  ) async {
+    final path = photo.filePath;
+    if (path == null) throw const UploadPermissionException('사진 원본을 읽지 못했습니다.');
+    final bytes = await File(path).readAsBytes();
+    final extension = path.toLowerCase().split('.').last;
+    final mimeType = switch (extension) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      _ => 'image/jpeg',
+    };
+    return (bytes: bytes, mimeType: mimeType);
   }
 
   Future<UploadPhoto> _resolveOriginal(UploadPhoto photo) async {

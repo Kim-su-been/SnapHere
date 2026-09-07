@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snap_here/src/features/upload/data/device_upload_repository.dart';
+import 'package:snap_here/src/features/auth/application/auth_controller.dart';
 import 'package:snap_here/src/features/upload/data/fake_upload_repository.dart';
 import 'package:snap_here/src/features/upload/domain/upload_models.dart';
 import 'package:snap_here/src/features/upload/domain/upload_repository.dart';
@@ -12,7 +13,9 @@ const _useFakeUpload = bool.fromEnvironment(
 
 final uploadRepositoryProvider = Provider<UploadRepository>((ref) {
   if (_useFakeUpload) return FakeUploadRepository();
-  return DeviceUploadRepository();
+  return DeviceUploadRepository(
+    accessToken: ref.watch(authControllerProvider).value?.accessToken,
+  );
 });
 
 enum UploadStep { gallery, review, form, complete }
@@ -163,7 +166,7 @@ class UploadController extends AsyncNotifier<UploadState> {
 
   bool addCapturedPhoto(UploadPhoto photo) {
     final current = state.requireValue;
-    if (current.selectedPhotoIds.length >= 10) return false;
+    if (current.selectedPhotoIds.length >= 4) return false;
     final selected = [...current.selectedPhotoIds];
     selected.add(photo.id);
     state = AsyncData(
@@ -184,7 +187,7 @@ class UploadController extends AsyncNotifier<UploadState> {
       if (selected.length == 1) return;
       selected.remove(id);
     } else {
-      if (selected.length >= 10) return;
+      if (selected.length >= 4) return;
       selected.add(id);
     }
     state = AsyncData(

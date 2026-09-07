@@ -109,7 +109,8 @@ public class MapService {
                 .filter(java.util.Objects::nonNull).forEach(ids::add);
         Map<Long, PostSummaryResponse> summaries = summaries(ids, viewerId);
         return rows.stream().map(row -> new MapDtos.MapRegion(row.region(), row.postCount(),
-                row.contributorCount(), summaries.get(row.representativePostId()))).toList();
+                row.contributorCount(), row.representativePostId() == null
+                        ? null : summaries.get(row.representativePostId()))).toList();
     }
 
     private Map<Long, PostSummaryResponse> summaries(LinkedHashSet<Long> ids, Optional<UUID> viewerId) {

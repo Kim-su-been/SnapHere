@@ -10,7 +10,6 @@ Spring Boot 3.5 · JDK 21.0.11 · Gradle 8.14 (Kotlin DSL) 기반 백엔드 API 
 | 기능 명세서 | `docs/02-feature-spec.md` |
 | API 명세서 | `docs/03-api-spec.md` |
 | ERD 참조 | `docs/05-erd-reference.md` |
-| DB 스키마 (DBML) | `docs/12-db-schema.dbml` |
 | 명세 변경 이력 | `docs/08-spec-changelog.md` |
 | 커밋·브랜치 규칙 | `docs/commit-convention.md` |
 | 스프레드시트 원본 | `docs/specs/` |
@@ -116,7 +115,7 @@ API 기본값은 1.40으로 설정돼 있으며 `-Dapi.version=...`으로 재정
 
 ## 실행 전 필요한 값
 
-아래 환경 변수가 필요하다. `SNAPHERE_JWT_SECRET` 은 32바이트 이상
+PostgreSQL 16 데이터베이스와 아래 환경 변수가 필요하다. `SNAPHERE_JWT_SECRET` 은 32바이트 이상
 무작위 값으로 설정하고, 모바일 앱의 Google OAuth 클라이언트 ID 를 쓴다.
 
 ```text
@@ -206,26 +205,6 @@ MEDIA_PUBLIC_BASE_URL=https://cdn.example.com
 
 **인증 반경 우선순위** (`PLC-022`, `EVT-023`) — 이벤트별 값 → 그 지역 기본값 → 2,000m.
 일반 게시글은 장소에 설정된 값(관광지 500m / 사용자 장소 100m)을 쓴다.
-
-### 이미지 후처리 (`PST-019`~`PST-021`)
-
-썸네일 생성·EXIF 제거·해시 계산은 등록 응답과 분리해 돌린다. 게시글 커밋 이후에
-`PostCreatedEvent` 를 받아 `imageProcessingExecutor` 풀에서 처리한다.
-
-| 단계 | 객체 키 | 이유 |
-| --- | --- | --- |
-| 원본 보관 | `originals/{키}` | 좌표가 남은 사본. 심사 근거이고 후처리를 다시 돌릴 수 있다 (`PST-020` 비고) |
-| 공개 이미지 | `{키}` (덮어쓰기) | 새 키를 만들면 저장된 `image_key` 와 앱이 든 주소가 어긋난다 |
-| 썸네일 | `thumbs/{키}` | 긴 변 480px |
-
-EXIF 는 태그를 하나씩 지우지 않는다. `ImageIO` 로 픽셀만 읽어 다시 인코딩하면 EXIF·GPS·기기
-정보가 애초에 옮겨지지 않는다. 지울 태그 목록을 관리할 필요가 없고 라이브러리도 더 붙이지 않는다.
-
-해시는 **원본** 바이트로 계산한다. 재인코딩 결과로 계산하면 JDK 인코더가 바뀔 때 같은 사진의
-해시가 달라져 중복 판정(`PST-031`)이 무너진다.
-
-후처리가 실패해도 게시글은 남는다. 사진은 원본 그대로 보이고 썸네일·해시만 비며, 목록에서는
-원본 주소와 기본 비율을 대신 준다. 한 장이 실패해도 나머지 사진은 계속 처리한다.
 
 ## 로컬에서 호출해 보기
 

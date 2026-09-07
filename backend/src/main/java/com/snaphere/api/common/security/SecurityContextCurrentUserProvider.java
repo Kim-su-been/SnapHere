@@ -13,11 +13,8 @@ import java.util.Optional;
 /**
  * JwtAuthenticationFilter 가 SecurityContext 에 넣어 둔 {@link AuthPrincipal} 을 읽는다. (AUTH-011)
  *
- * <p>SecurityConfig 가 {@code POST /api/v1/**} 를 authenticated() 로 두었으므로 쓰기 요청은
+ * <p>SecurityConfig 가 {@code POST /api/v1/**} 를 authenticated() 로 두었으므로
  * 여기까지 왔다면 이미 유효한 액세스 토큰이 검증된 상태다. 그래도 방어적으로 한 번 더 확인한다.
- *
- * <p>{@code GET /api/v1/**} 는 permitAll 이라 토큰 없이도 들어온다. 그래서 조회에서는
- * {@link #optional} 을 써야 하고, {@link #require} 를 쓰면 비회원 조회가 401 이 된다.
  */
 @Component
 public class SecurityContextCurrentUserProvider implements CurrentUserProvider {

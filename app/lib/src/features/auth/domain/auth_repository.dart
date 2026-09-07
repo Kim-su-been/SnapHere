@@ -7,6 +7,7 @@ abstract interface class AuthRepository {
 
   Future<AuthSession> completeProfile({
     required String accessToken,
+    required String refreshToken,
     required ProfileSubmission submission,
   });
 
@@ -14,7 +15,10 @@ abstract interface class AuthRepository {
 
   Future<void> signOut(String accessToken);
 
-  Future<void> deleteAccount(String accessToken);
+  Future<void> deleteAccount(
+    String accessToken, {
+    required String contentAction,
+  });
 }
 
 abstract interface class LegalDocumentRepository {

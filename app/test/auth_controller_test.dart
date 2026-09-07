@@ -49,7 +49,7 @@ void main() {
       expect(active?.user?.nickname, '여행토끼');
       expect((await store.read())?.accessToken, active?.accessToken);
 
-      await controller.deleteAccount();
+      await controller.deleteAccount(contentAction: 'KEEP_ANONYMIZED');
       expect(container.read(authControllerProvider).value, isNull);
       expect(await store.read(), isNull);
     },
