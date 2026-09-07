@@ -2,6 +2,7 @@ package com.snaphere.api.admin;
 
 import com.snaphere.api.integration.TourApiClient;
 import com.snaphere.api.place.PlaceRepository;
+import com.snaphere.api.place.PlaceReadCache;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -15,10 +16,12 @@ public class PlaceSyncWorker {
     private static final int PAGE_SIZE = 500;
     private final JdbcClient jdbc;
     private final TourApiClient tourApi;
+    private final PlaceReadCache cache;
 
-    public PlaceSyncWorker(JdbcClient jdbc, TourApiClient tourApi) {
+    public PlaceSyncWorker(JdbcClient jdbc, TourApiClient tourApi, PlaceReadCache cache) {
         this.jdbc = jdbc;
         this.tourApi = tourApi;
+        this.cache = cache;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -43,6 +46,7 @@ public class PlaceSyncWorker {
                     ON CONFLICT(area_code,sigungu_code) DO UPDATE SET name_ko=excluded.name_ko
                     """).param("area", areaCode).param("code", item.code()).param("name", item.name()).update();
         }
+        cache.evictSigungu(areaCode);
     }
 
     private void upsert(TourApiClient.OfficialPlace item) {

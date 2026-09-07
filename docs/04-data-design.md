@@ -2,7 +2,7 @@
 
 > 상태: 사용자 제공 ERD 정본 · 2026-09-05
 >
-> 대상 DB: Percona PostgreSQL 17.10.2 + PostGIS 3.5.7
+> 대상 DB: Percona PostgreSQL 17.10.2 + PostGIS 3.6.2 (커스텀 이미지)
 >
 > 규모: 28개 테이블 · 22개 enum · DBML에 명시한 관계 42개
 >
@@ -102,7 +102,8 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 - 알림 본문은 완성 문장 대신 `message_key`와 `message_params`로 저장해 다국어 렌더링을 지원한다.
 - 신고는 동일 사용자가 같은 대상을 중복 신고하지 못하도록 UNIQUE를 둔다.
 - `sync_logs`는 장소·이벤트·랭킹·히트맵·카운터 보정 작업의 조합 단위 결과를 기록한다.
-- `search_logs`는 인기 검색어 집계용이며 최신 정본에는 `user_id`가 없다.
+- `search_logs`는 인기 검색어 집계용이며 최신 정본에는 `user_id`가 없다. 커서 없는 첫 검색만 기록하고 최근 7일을 집계하며, 원본 로그는 30일 뒤 매일 05:20 배치로 삭제한다.
+- 사용자별 최근 검색어는 DB 테이블을 추가하지 않고 Redis에 최대 20개를 저장한다. 동일 검색어는 최신 순서로 갱신하며 마지막 검색부터 30일이 지나면 만료한다.
 
 ## 5. 인덱스와 조회 원칙
 
@@ -110,6 +111,9 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 |---|---|---|
 | 주변 장소 검색 | `gix_places_geom` GIST | `ST_DWithin(geom, :point, :radius_m)` |
 | 장소 부분어 검색 | `gin_places_title` GIN | 제목·주소 `pg_trgm` 검색 |
+| 게시글 본문 검색 | `gin_posts_content_search` GIN | 활성 게시글 본문 `pg_trgm` 부분어 검색 |
+| 사용자·태그 접두어 검색 | `idx_users_nickname_search`, `idx_tags_normalized_search` | 정규화된 닉네임·태그 접두어와 안정 정렬 |
+| 인기 검색 기간 집계 | `idx_search_logs_searched_at`, `idx_search_logs_area_keyword` | 최근 7일 및 지역별 집계·30일 삭제 |
 | 활성 게시글 목록 | `idx_posts_area_created` 등 부분 인덱스 | `status = 'ACTIVE'` |
 | 안 읽은 알림 | `idx_notifications_unread` 부분 인덱스 | `is_read = false` |
 | 기간별 게시글 순위 | `idx_post_rankings_lookup` | `(period, rank_no)` |
@@ -125,6 +129,8 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 | 받은 뱃지 | 근거 게시글 삭제 후에도 유지 |
 | 방문 기록 | 근거 게시글 삭제 후에도 유지 |
 | 읽은 알림 | 90일 뒤 배치 삭제 |
+| 인기 검색 원본 로그 | 30일 뒤 매일 05:20 배치 삭제 |
+| 최근 검색어 | Redis 사용자별 최대 20개, 마지막 검색부터 TTL 30일 |
 | 비정규화 카운터 | 매일 새벽 원본 기준 보정 |
 
 ## 7. 아직 정본에 넣지 않은 제안
@@ -132,8 +138,8 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 다음은 필요성이 제기됐지만 데이터 계약이 확정되지 않아 컬럼·테이블로 추가하지 않는다.
 
 - MAP-025: `heatmap_cells.sample_thumbnails` 사전 저장
-- SCH-011·VST-006: 사용자별 최근 검색어·최근 본 장소 저장소
-- RNK-013: 운영자 지정 장소 목록 또는 `places.is_curated`
+- VST-006: 사용자별 최근 본 장소 저장소
+- RNK-013: 애플리케이션 V19는 `places.is_curated`로 구현했다. 사용자 제공 독립 ERD 정본 반영은 후속 개정에서 결정한다.
 - 신고 대상에 댓글·사용자를 포함할지 여부와 댓글 `BLINDED` 상태
 - BDG-013: `badges.earned_count`
 - CMU-019: 게시글 공유용 `share_slug`

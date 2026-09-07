@@ -1,5 +1,5 @@
 // SnapHere — 데이터 설계 정본 (2026-09-05)
-// Percona PostgreSQL 17.10.2 + PostGIS 3.5.7 · dbdiagram.io 붙여넣기용
+// Percona PostgreSQL 17.10.2 + PostGIS 3.6.2 (커스텀 이미지) · dbdiagram.io 붙여넣기용
 // 사용자 제공 ERD 기준 28개 테이블. tier_logs와 구현 보조 테이블은 정본에서 제외한다.
 // 필요한 확장: postgis, pg_trgm
 
@@ -523,5 +523,6 @@ TableGroup "알림 · 운영" {
 
 // 다형 참조(likes, bookmarks, reports, notifications)는 애플리케이션에서 대상 존재를 검증한다.
 // places의 (area_code, sigungu_code)는 sigungu 복합 키를 논리적으로 참조한다.
-// 미결정 제안: MAP-025 썸네일 사전 저장, SCH-011/VST-006 저장소, RNK-013 운영자 지정 장소,
+// 미결정 제안: MAP-025 썸네일 사전 저장, VST-006 저장소, RNK-013 운영자 지정 장소,
 // 신고 대상 범위, BDG-013 earned_count, CMU-019 공유 slug는 후속 결정 전까지 정본 컬럼에 넣지 않는다.
+// SCH-011 최근 검색어는 애플리케이션 Redis에 사용자별 최대 20개·TTL 30일로 저장한다.

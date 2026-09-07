@@ -2,7 +2,7 @@
 
 > 기준: 사용자 제공 ERD 정본 · 2026-09-05
 >
-> 대상 DB: Percona PostgreSQL 17.10.2 + PostGIS 3.5.7
+> 대상 DB: Percona PostgreSQL 17.10.2 + PostGIS 3.6.2 (커스텀 이미지)
 >
 > 구성: 28개 테이블 · 22개 enum · DBML 명시 관계 42개
 >
@@ -119,7 +119,7 @@
 | `notifications` | `notification_id` | `recipient_id→users`, `actor_id→users`; 대상은 논리 참조 | `(recipient_id, actor_id, type, target_type, target_id)` | `type`, `target_type`, `target_id`, `message_key`, `message_params`, `is_read`, `created_at` |
 | `reports` | `report_id` | `reporter_id→users`; 대상은 논리 참조 | `(reporter_id, target_type, target_id)` | `reason`, `status`, `created_at` |
 | `sync_logs` | `sync_id` | `area_code→regions` | - | `job_type`, `content_type_id`, `result`, `count`, `message`, `created_at` |
-| `search_logs` | `log_id` | `area_code→regions` | - | `keyword`, `searched_at` |
+| `search_logs` | `log_id` | `area_code→regions` | - | `keyword`, `searched_at` — 최근 7일 인기 검색 집계, 원본 30일 보존 |
 
 최신 정본의 `reports`에는 `detail`, `action`, `reviewed_at`이 없고 `search_logs`에는 `user_id`가 없다.
 
@@ -184,6 +184,12 @@
 |---|---|---|
 | `gix_places_geom` | `places.geom` | GIST 반경 검색 |
 | `gin_places_title` | `places.title`, `places.addr1` | `pg_trgm` 한글 부분어 검색 |
+| `gin_places_addr1_search` | `places.addr1` | 애플리케이션 주소 부분어 검색 |
+| `gin_posts_content_search` | `posts.content` | 활성 게시글 본문 부분어 검색 |
+| `idx_users_nickname_search` | `users.nickname` | 활성 사용자 닉네임 접두어 검색 |
+| `idx_tags_normalized_search` | `tags.normalized_name` | 정규화 태그 접두어 검색 |
+| `idx_search_logs_searched_at` | `search_logs.searched_at` | 7일 인기 검색 집계와 30일 로그 삭제 |
+| `idx_search_logs_area_keyword` | `search_logs(area_code, keyword, searched_at)` | 지역별 인기 검색 집계 |
 | `idx_posts_area_created` | `posts(area_code, created_at)` | 활성 게시글 지역 피드 |
 | `idx_comments_post` | `comments(post_id, created_at)` | 활성 댓글 목록 |
 | `idx_notifications_unread` | `notifications(recipient_id, is_read)` | 안 읽은 알림 |
@@ -203,11 +209,14 @@
 | 사진 순서 | 0~3 | 일부 구현은 1~4 |
 | 등급 감사 | 별도 테이블 없음 | `tier_logs` 존재 가능 |
 | 히트맵 보조 상태 | 정본에 없음 | `heatmap_refresh_state` 존재 가능 |
+| 운영자 추천 장소 | 정본의 미결정 제안 | 애플리케이션 V19에 `places.is_curated` 추가 |
+| 장소 랭킹 집계 차원 | `(place_id, period, theme)` 단위 | 애플리케이션 V19는 전국·지역 및 전체·공식·사용자 순위를 미리 저장하도록 `scope`, `place_type` 추가 |
+| 최근 검색어 | 저장소 미결정 | 애플리케이션 Redis에 사용자별 최대 20개·TTL 30일로 저장 |
 
 따라서 이 문서 변경만으로 기존 Flyway 마이그레이션을 삭제하거나 재작성해서는 안 된다.
 
 ---
 
-결정 기록: [`07-decision-log.md`](07-decision-log.md)의 `DEC-20260905-011`
+결정 기록: [`07-decision-log.md`](07-decision-log.md)의 `DEC-20260905-011`, `DEC-20260906-036`
 
 변경 이력: [`08-spec-changelog.md`](08-spec-changelog.md)

@@ -1,6 +1,6 @@
 # API 명세서
 
-> API 명세서 · ERD **v1.1.5** · REST/JSON · Base URL `/api/v1`
+> API 명세서 · ERD **v1.1.7** · REST/JSON · Base URL `/api/v1`
 >
 > 모든 엔드포인트는 요구사항 ID에 매핑돼 있다. 매핑되지 않은 엔드포인트는 없다(§7).
 
@@ -61,12 +61,12 @@
 
 | API ID | API 이름 | Method | Path | 인증 | 중요도 | 설명 | 요청 스키마 | 응답 스키마 | 성공 | 주요 에러 | 페이징 | 캐시·멱등 | 관련 요구사항 | 관련 테이블·비고 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| API-PST-001 | 업로드 주소 발급 | POST | /api/v1/media/presigned-urls | Bearer | Must | 게시글(1~4개) 또는 프로필(1개) 이미지의 S3 Presigned URL을 발급한다. jpeg·png·heic·webp, 장당 10MB 이하. | PresignRequest | UploadUrl[] | 201 | MEDIA_COUNT_INVALID, MEDIA_TOO_LARGE, MEDIA_TYPE_UNSUPPORTED, COMMON_429 | - | URL 5분 | USER-004, PST-013~015, SYS-020 | S3, post_images<br>※ 클라이언트가 반환 URL로 S3에 직접 PUT |
+| API-PST-001 | 업로드 주소 발급 | POST | /api/v1/media/presigned-urls | Bearer | Must | 게시글 원본은 비공개 `originals/` 키로, 프로필 이미지는 `profile/` 키로 5분 Presigned URL을 발급한다. jpeg·png·heic·webp, 장당 10MB 이하. | PresignRequest | UploadUrl[] | 201 | MEDIA_COUNT_INVALID, MEDIA_TOO_LARGE, MEDIA_TYPE_UNSUPPORTED, COMMON_429 | - | URL 5분 | USER-004, PST-013~015, SYS-020 | S3, post_images<br>※ 게시글 원본은 공개 URL로 변환하지 않는다. |
 | API-PST-002 | 신뢰도 미리보기 | POST | /api/v1/posts/tier-preview | Bearer | Should | 업로드 전 장소·촬영 정보로 예상 신뢰도와 판정 이유를 계산한다. | TierPreviewRequest | TierResult | 201 | PLACE_NOT_FOUND, POST_INVALID_TAKEN_AT, COMMON_422 | - | - | PST-022~028, PST-048~049 | places, events<br>※ 최종 등급은 게시 생성 시 서버가 다시 계산 |
-| API-PST-003 | 게시글 생성 | POST | /api/v1/posts | Bearer | Must | 사진·장소·캡션·태그를 검증하고 게시글을 생성한다. | CreatePostRequest | CreatePostResult | 201 | POST_IMAGE_REQUIRED, POST_PLACE_REQUIRED, POST_TAG_REQUIRED, POST_DAILY_LIMIT, POST_PLACE_DAILY_LIMIT, POST_DUPLICATE_IMAGE, POST_UPLOAD_SUSPENDED, COMMON_422 | - | Idempotency-Key 필수 | PST-001~006, PST-008~011, PST-016~032, EVT-016~023, VST-001~002, BDG-005~006 | posts, post_images, post_tags, visits, user_badges<br>※ eventId가 있으면 고정 태그를 서버가 재주입; 반경 밖이어도 게시 성공·badgeAwarded=false |
+| API-PST-003 | 게시글 생성 | POST | /api/v1/posts | Bearer | Must | 게시글을 만들고 `postId`와 `mediaStatus=PROCESSING`을 반환한다. 정제본 준비 전에는 공개하지 않는다. | CreatePostRequest | CreatePostResult | 201 | POST_IMAGE_REQUIRED, POST_PLACE_REQUIRED, POST_TAG_REQUIRED, POST_DAILY_LIMIT, POST_PLACE_DAILY_LIMIT, POST_DUPLICATE_IMAGE, POST_UPLOAD_SUSPENDED, COMMON_422 | - | Idempotency-Key 필수 | PST-001~006, PST-008~011, PST-016~032, EVT-016~023, VST-001~002, BDG-005~006 | posts, post_images, post_tags, visits, user_badges |
 | API-PST-004 | 게시글 목록 | GET | /api/v1/posts | Bearer(optional) | Must | 지역·장소·태그·기간으로 공개 게시글을 조회한다. | - | CursorPage<PostSummary> | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | cursor | - | PST-021, PST-034, SYS-018 | posts, post_images, post_tags |
 | API-PST-005 | 인기 게시글 | GET | /api/v1/posts/popular | Bearer(optional) | Must | 지도·탐색용 기간별 인기 게시글을 사전 집계(post_rankings)에서 조회한다. 커뮤니티 인기 탭은 API-CMU-001을 쓴다. | - | CursorPage<PostSummary> | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | cursor | 집계 테이블 조회, 요청 시 계산 금지 | PST-035, CMU-008 | post_rankings, posts, post_images / ※ 지도·탐색 진입점. 커뮤니티 인기 탭과 역할 분리(B-2) |
-| API-PST-006 | 게시글 상세 | GET | /api/v1/posts/{postId} | Bearer(optional) | Must | 사진·캡션·태그·장소·작성자·신뢰도 근거를 조회한다. | - | PostDetail | 200 | POST_NOT_FOUND, POST_NOT_VISIBLE, COMMON_500 | - | 공개 60s; 조회수 24h 중복 제거 | PST-033, PST-042, PST-046~047, SYS-010 | posts, post_images, post_tags, users, places |
+| API-PST-006 | 게시글 상세 | GET | /api/v1/posts/{postId} | Bearer(optional) | Must | 사진·캡션·태그·장소·작성자·신뢰도 근거를 조회한다. | - | PostDetail | 200 | POST_NOT_FOUND, POST_NOT_VISIBLE, POST_MEDIA_PROCESSING, POST_MEDIA_FAILED, COMMON_500 | - | 공개 60s; 조회수 24h 중복 제거 | PST-033, PST-042, PST-046~047, SYS-010, SYS-021 | posts, post_images, post_tags, users, places<br>※ 작성자만 처리 상태 409, 그 외에는 404 |
 | API-PST-007 | 게시글 수정 | PATCH | /api/v1/posts/{postId} | Bearer | Should | 작성자가 캡션·태그·사진 순서만 수정한다. | UpdatePostRequest | PostDetail | 200 | POST_NOT_AUTHOR, POST_NOT_FOUND, POST_TAG_REQUIRED, COMMON_422 | - | - | AUTH-013, PST-036~037, CMU-032 | posts, post_images, post_tags<br>※ placeId, lat/lng, tier, source는 수정 불가 |
 | API-PST-008 | 게시글 삭제 | DELETE | /api/v1/posts/{postId} | Bearer | Must | 작성자가 게시글을 논리 삭제하고 미디어 30일 후 삭제를 예약한다. | - | Empty | 204 | POST_NOT_AUTHOR, POST_NOT_FOUND, COMMON_409 | - | - | AUTH-013, PST-038~039, SYS-006 | posts, post_images<br>※ 방문·기지급 뱃지는 유지 |
 | API-PST-009 | 게시글 좋아요 | PUT | /api/v1/posts/{postId}/like | Bearer | Must | 게시글 좋아요를 멱등 등록한다. | - | LikeResult | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | - | 멱등 PUT | PST-040~041 | likes, posts |
@@ -150,10 +150,10 @@
 
 | API ID | API 이름 | Method | Path | 인증 | 중요도 | 설명 | 요청 스키마 | 응답 스키마 | 성공 | 주요 에러 | 페이징 | 캐시·멱등 | 관련 요구사항 | 관련 테이블·비고 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| API-SCH-001 | 통합 검색 | GET | /api/v1/search | Bearer(optional) | Must | 장소·게시글·사용자·태그를 통합 검색하고 타입별 상위를 반환한다. | - | SearchResult | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | 타입별 cursor | - | SCH-001, SCH-003~009 | places, posts, users, tags, search_logs |
-| API-SCH-002 | 인기 검색어 | GET | /api/v1/search/popular | Public | Could | 검색 로그 집계 기반 인기 검색어를 반환한다. | - | PopularKeyword[] | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | - | 10m | SCH-002, SCH-010 | search_logs |
-| API-SCH-003 | 최근 검색어 | GET | /api/v1/me/recent-searches | Bearer | Could | 사용자의 최근 검색어를 조회한다. | - | RecentSearch[] | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | - | - | SCH-002, SCH-011 | search_logs / ※ 최근 검색어 저장소 미정 — 앱 로컬·Redis·별도 테이블 (DBML 미결정 10) |
-| API-SCH-004 | 최근 검색어 삭제 | DELETE | /api/v1/me/recent-searches | Bearer | Could | 최근 검색어 한 건 또는 전체를 삭제한다. | - | Empty | 204 | COMMON_400, AUTH_REQUIRED, COMMON_500 | - | - | SCH-011 | search_logs |
+| API-SCH-001 | 통합 검색 | GET | /api/v1/search | Bearer(optional) | Must | 장소·게시글·사용자·태그를 통합 검색하고 타입별 상위를 반환한다. | - | SearchResult | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | 단일 types 지정 시 불투명 keyset cursor | - | SCH-001, SCH-003~009 | places, posts, users, tags, search_logs(커서 없는 첫 페이지 검색만 기록) |
+| API-SCH-002 | 인기 검색어 | GET | /api/v1/search/popular | Public | Could | 최근 7일 검색 로그 집계 기반 인기 검색어를 반환한다. | - | PopularKeyword[] | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | - | 10m | SCH-002, SCH-010 | search_logs(30일 보존), Redis(10분 캐시) |
+| API-SCH-003 | 최근 검색어 | GET | /api/v1/me/recent-searches | Bearer | Could | 사용자의 최근 검색어를 조회한다. | - | RecentSearch[] | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | - | - | SCH-002, SCH-011 | Redis(사용자별 최대 20개, TTL 30일, 동일 검색어 최신화) |
+| API-SCH-004 | 최근 검색어 삭제 | DELETE | /api/v1/me/recent-searches | Bearer | Could | 최근 검색어 한 건 또는 전체를 삭제한다. | - | Empty | 204 | COMMON_400, AUTH_REQUIRED, COMMON_500 | - | - | SCH-011 | Redis(검색어 1건 또는 전체 삭제) |
 
 ### 관리자·운영
 
@@ -193,12 +193,12 @@
 | 좌표 | 공간 기준 | WGS84 lat/lng | mapx=경도, mapy=위도; 서버가 지역 역산 | PLC-005, PST-018 |
 | 멱등 | PUT/DELETE | 동일 요청 반복 시 같은 200 결과 | 팔로우·좋아요·저장 | SOC-002, SOC-007 |
 | 멱등 | POST 생성 | Idempotency-Key 헤더 | 게시글·장소 생성에서 네트워크 재시도 안전성 확보 | SYS-001 |
-| 업로드 | 직접 S3 업로드 | Presigned URL 5분 | 서버는 원본 바이트를 중계하지 않음 | PST-013~015, SYS-020 |
+| 업로드 | 직접 S3 업로드 | Presigned URL 5분 · 게시글 원본은 비공개 `originals/` 경로 | 서버는 원본 바이트를 중계하거나 공개 URL로 반환하지 않음 | PST-013~015, SYS-020, SYS-021 |
 | 보안 | 신뢰 금지 필드 | tier·areaCode·sigunguCode·fixedTags·장소명 태그는 서버 재계산·주입 | 클라이언트 값을 직접 저장하지 않는다. 장소명 태그는 placeId로부터 서버가 주입해 태그 최소 1개를 보장 | PST-018, PST-022, PLC-021, EVT-019 |
 | 삭제 | 논리 삭제 | 상태 변경 후 배치 물리 삭제 | 공개 조회는 404로 동일 처리 | SYS-006 |
 | 추적 | X-Trace-Id | 요청 헤더 수용 또는 서버 생성 | 응답 traceId와 로그에 동일 값 | SYS-016 |
 | 호출 제한 | 429 | retryAfterSec 반환 | 팔로우 200/일·게시글 30/일·장소 5/일 | SOC-006, PLC-018, PST-029 |
-| 캐시 | 공개 조회 | Cache-Control/ETag 사용 가능 | 히트맵은 nextRefreshAt 우선 | MAP-013, SYS-019 |
+| 캐시 | 공개 조회 | 시도·시군구 24시간, 언어별 장소 상세 10분 | 개인화·실시간 필드는 제외하고 Redis 장애 시 DB 폴백 | MAP-013, SYS-019 |
 | CORS | 허용 출처 | 환경별 allowlist | 와일드카드 금지 | SYS-014 |
 
 ## 3. 요청 파라미터 (235개)
@@ -425,8 +425,8 @@
 | POST | /api/v1/posts | body | eventId | uuid\|null | N | 이벤트 참여 시 | evt_01 | 이벤트 ID |
 | POST | /api/v1/posts | body | content | string | N | 최대 5000자 | 야경이 멋져요 | 캡션 원문 |
 | POST | /api/v1/posts | body | originalLanguageCode | string | Y | BCP 47 | ko | 원문 언어 |
-| POST | /api/v1/posts | body | images | array | Y | 1~4개, 발급 imageKey | [{imageKey:'posts/...',sortOrder:1}] | 업로드 완료 이미지. 원소는 imageKey · sortOrder · aspectRatio · imageHash 네 필드다 (v1.1.4에서 원소 구조 명시) |
-| POST | /api/v1/posts | body | images[].imageKey | string | Y | presigned-urls 발급 키 | posts/{userId}/{uuid}.webp | 서버가 접두어로 발급 소유자를 확인한다. 남의 키는 MEDIA_NOT_FOUND (PST-014) |
+| POST | /api/v1/posts | body | images | array | Y | 1~4개, 발급 imageKey | [{imageKey:'originals/posts/...',sortOrder:1}] | 업로드 완료 이미지. 원소는 imageKey · sortOrder · aspectRatio · imageHash 네 필드다. |
+| POST | /api/v1/posts | body | images[].imageKey | string | Y | presigned-urls 발급 키 | originals/posts/{userId}/{uuid}.webp | 서버가 접두어로 발급 소유자를 확인한다. 남의 키는 MEDIA_NOT_FOUND (PST-014) |
 | POST | /api/v1/posts | body | images[].sortOrder | integer | Y | 1~4, 중복 불가 | 1 | 1부터다. 게시글당 1~4장이므로 값이 곧 몇 번째 사진인지를 뜻한다 (PST-001) |
 | POST | /api/v1/posts | body | images[].aspectRatio | number\|null | N | 0 초과 | 1.3333 | 메이슨리가 이미지 도착 전에 카드 높이를 잡아야 하는데 후처리 전까지 값이 없어 클라이언트가 아는 값을 함께 받는다. 후처리(JOB-003)가 실제 값으로 덮어쓴다 (PST-021, v1.1.4 추가) |
 | POST | /api/v1/posts | body | images[].imageHash | string\|null | N | SHA-256 소문자 16진수 64자 | a1b2... | 중복 409 를 등록 응답 전에 내리기 위한 값. 서버가 이 시점에 원본을 내려받아 계산하면 PST-019 와 어긋난다. 비우면 검사를 건너뛰고 후처리가 실제 해시로 덮어쓴다 (PST-031, v1.1.4 추가) |
@@ -753,9 +753,9 @@
 | Method | Path | 위치 | 파라미터 | 타입 | 필수 | 제약·기본값 | 예시 | 설명 |
 |---|---|---|---|---|---|---|---|---|
 | GET | /api/v1/search | query | q | string | Y | 1~100자 | 경복궁 | 검색어 |
-| GET | /api/v1/search | query | types | array<enum> | N | PLACE\|POST\|USER\|TAG | PLACE,POST | 검색 대상 |
-| GET | /api/v1/search | query | areaCode | integer | N | 필터 | 1 | 지역 필터 |
-| GET | /api/v1/search | query | cursor | string | N | 더보기 타입의 커서 | eyJ... | 페이지 커서 |
+| GET | /api/v1/search | query | types | array<enum> | N | PLACE\|POST\|USER\|TAG, cursor 사용 시 정확히 1개 | PLACE,POST | 검색 대상 |
+| GET | /api/v1/search | query | areaCode | integer | N | 지역명과 정확히 일치하면 해당 지역 코드가 우선 | 1 | 지역 필터 |
+| GET | /api/v1/search | query | cursor | string | N | 단일 검색 타입용 불투명 keyset cursor | eyJ... | 페이지 커서 |
 | GET | /api/v1/search | query | size | integer | N | 타입별 기본 5, 더보기 최대 50 | 5 | 결과 수 |
 
 ### API-SCH-002
@@ -763,7 +763,7 @@
 | Method | Path | 위치 | 파라미터 | 타입 | 필수 | 제약·기본값 | 예시 | 설명 |
 |---|---|---|---|---|---|---|---|---|
 | GET | /api/v1/search/popular | query | areaCode | integer | N | - | 1 | 지역 |
-| GET | /api/v1/search/popular | query | limit | integer | N | 기본 10 | 10 | 개수 |
+| GET | /api/v1/search/popular | query | limit | integer | N | 기본 10, 최대 50 | 10 | 개수 |
 
 ### API-SCH-004
 
@@ -775,7 +775,7 @@
 
 | Method | Path | 위치 | 파라미터 | 타입 | 필수 | 제약·기본값 | 예시 | 설명 |
 |---|---|---|---|---|---|---|---|---|
-| POST | /api/v1/admin/batches/{jobType} | path | jobType | enum | Y | URL encode | PLACE_SYNC | jobType 경로 식별자 |
+| POST | /api/v1/admin/batches/{jobType} | path | jobType | enum | Y | PLACE_SYNC\|EVENT_SYNC\|RANKING_RECALC\|HEATMAP_RECALC\|COUNTER_RECONCILE | PLACE_SYNC | jobType 경로 식별자 |
 | POST | /api/v1/admin/batches/{jobType} | body | areaCode | integer | N | 장소·이벤트 배치 필터 | 1 | 지역 |
 | POST | /api/v1/admin/batches/{jobType} | body | contentTypeId | integer | N | 장소 동기화 필터 | 12 | 콘텐츠 유형 |
 
@@ -837,7 +837,7 @@
 | Method | Path | 위치 | 파라미터 | 타입 | 필수 | 제약·기본값 | 예시 | 설명 |
 |---|---|---|---|---|---|---|---|---|
 | GET | /api/v1/admin/reports | query | status | enum | N | PENDING\|RESOLVED\|REJECTED | PENDING | 처리 상태 |
-| GET | /api/v1/admin/reports | query | targetType | enum | N | POST\|PLACE\|COMMENT\|USER | POST | 대상 종류 |
+| GET | /api/v1/admin/reports | query | targetType | enum | N | POST\|PLACE | POST | 대상 종류 |
 | GET | /api/v1/admin/reports | query | cursor | string | N | 서버가 발급한 불투명 커서 | eyJ... | 다음 페이지 커서 |
 | GET | /api/v1/admin/reports | query | size | integer | N | 기본 20, 최대 50 | 20 | 페이지 크기 |
 
@@ -847,7 +847,6 @@
 |---|---|---|---|---|---|---|---|---|
 | PATCH | /api/v1/admin/reports/{reportId} | path | reportId | uuid\|string | Y | URL encode | reportId_01 | reportId 경로 식별자 |
 | PATCH | /api/v1/admin/reports/{reportId} | body | action | enum | Y | RESTORE\|HIDE\|DELETE\|REJECT | HIDE | 처리 액션 |
-| PATCH | /api/v1/admin/reports/{reportId} | body | memo | string | N | 최대 1000자 | 장소 불일치 확인 | 운영 메모 |
 
 ### API-ADM-011
 
@@ -872,7 +871,7 @@
 | POST | /api/v1/admin/places/{placeId}/moderation | body | targetPlaceId | uuid | N | 재배치 공식 장소 | plc_official_01 | 대체 장소 |
 
 
-## 4. 응답 스키마 (326개 필드)
+## 4. 응답 스키마 (328개 필드)
 
 ### ApiEnvelope<T>
 
@@ -995,7 +994,7 @@
 
 | 필드 경로 | 타입 | 필수 | 설명 | 예시 | 원천 |
 |---|---|---|---|---|---|
-| imageKey | string | Y | 서버 발급 객체 키 | posts/u1/uuid.webp | S3 |
+| imageKey | string | Y | 서버 발급 비공개 원본 객체 키 | originals/posts/u1/uuid.webp | S3 |
 | uploadUrl | url | Y | S3 PUT URL | https://s3/... | S3 |
 | headers | object | Y | 업로드 필수 헤더 | {Content-Type:'image/webp'} | - |
 | expiresAt | datetime | Y | 5분 만료 | 예: 2026-09-01T10:05:00+09:00 | - |
@@ -1327,7 +1326,8 @@
 
 | 필드 경로 | 타입 | 필수 | 설명 | 예시 | 원천 |
 |---|---|---|---|---|---|
-| post | PostDetail | Y | 생성된 게시글 | {...} | posts |
+| postId | string | Y | 생성된 게시글 ID | pst_01 | posts |
+| mediaStatus | enum | Y | PROCESSING\|READY\|FAILED | PROCESSING | Redis/post_images |
 | tierResult | TierResult | Y | 서버 판정 등급 | {...} | posts/places |
 | visitRecorded | boolean | Y | 방문 기록 생성 여부 | true | visits |
 | earnedBadges | BadgeSummary[] | Y | 이번 요청으로 획득한 뱃지 | [...] | user_badges |
@@ -1450,9 +1450,9 @@
 
 | 필드 경로 | 타입 | 필수 | 설명 | 예시 | 원천 |
 |---|---|---|---|---|---|
-| searchLogId | uuid | Y | 검색 로그 ID | sch_01 | search_logs |
-| keyword | string | Y | 검색어 | 경복궁 | search_logs |
-| searchedAt | datetime | Y | 검색 시각 | 예: 2026-09-01T09:00:00+09:00 | search_logs |
+| searchLogId | uuid | Y | 검색 로그 ID | 550e8400-e29b-41d4-a716-446655440000 | Redis |
+| keyword | string | Y | 검색어 | 경복궁 | Redis |
+| searchedAt | datetime | Y | 검색 시각 | 예: 2026-09-01T09:00:00+09:00 | Redis |
 
 ### SyncLog
 
@@ -1512,7 +1512,7 @@
 | totalApproximate | integer\|null | Y | 근사 결과 수 | 120 | 검색 인덱스 |
 
 
-## 5. 에러 코드 (55개)
+## 5. 에러 코드 (56개)
 
 > 앱은 HTTP 상태가 아니라 `error.code` 로 분기한다.
 
@@ -1572,21 +1572,23 @@
 | NOTIFICATION_NOT_FOUND | 404 | 알림 | 알림 없음 | 삭제·타 사용자 알림 | 알림함 새로고침 |
 | MAP_INVALID_BOUNDS | 422 | 지도 | 지도 경계값 오류 | west<east, south<north | 현재 화면 재요청 |
 | BATCH_ALREADY_RUNNING | 409 | 운영 | 같은 배치 실행 중 | runId 제공 | 기존 실행 확인 |
+| POST_MEDIA_PROCESSING | 409 | 게시글 | 이미지 정제 처리 중 | 작성자 상세 조회 | 잠시 후 재시도 |
+| POST_MEDIA_FAILED | 409 | 게시글 | 이미지 정제 최종 실패 | 작성자 상세 조회 | 이미지 재업로드 |
 
 ## 6. 배치 · 비동기 작업 (13개)
 
 | JOB ID | 작업 유형 | 주기·트리거 | 처리 내용 | 정합성·실패 정책 | 관련 테이블 | 관련 요구사항 | 호출 방식 |
 |---|---|---|---|---|---|---|---|
 | JOB-001 | PLACE_SYNC | 매일 + 수동 | 지역×콘텐츠 타입별 UPSERT·좌표 검증 | 조합 실패 격리 | places, place_details, sigungu, sync_logs | PLC-003~010 | 관리자 API 202 |
-| JOB-002 | EVENT_SYNC | 매일 + 수동 | 관광공사·지자체 이벤트 동기화 | 지역별 갱신 | events, sync_logs | EVT-001~003 | 관리자 API 202 |
-| JOB-003 | IMAGE_POSTPROCESS | 게시글 생성 후 | 썸네일·EXIF 제거·해시 계산 | 응답 비차단 | post_images | PST-019~021, SYS-021 | 비동기 큐 |
+| JOB-002 | EVENT_SYNC | 매일 04:30 KST + 수동 | TourAPI 행사를 실행일 -30일~+1년 범위로 지역별 UPSERT | 지역 실패 격리 | events, places, sync_logs | EVT-001~003, SYS-015 | 관리자 API 202 |
+| JOB-003 | IMAGE_POSTPROCESS | 게시글 생성 후 + 5분 재시도 | 비공개 원본의 EXIF 제거·재인코딩, 공개 정제본·썸네일·해시 생성 | 준비 전 게시글 비공개, Redis 상태·최대 5회, 최종 실패 비공개 유지 | post_images, Redis | PST-019~021, SYS-021 | 커밋 후 비동기 |
 | JOB-004 | BADGE_EVALUATION | 게시글 커밋 후 | 행사·지역·완주·기록 조건 평가 | UNIQUE로 중복 방지 | badges, user_badges, visits | BDG-001~007 | 비동기 큐 |
 | JOB-005 | NOTIFICATION_DISPATCH | 트랜잭션 커밋 후 | 좋아요·팔로우·뱃지·시스템 알림 발송 | 자기 자신·중복 제외 | notifications, user_devices | BDG-008, NTF-001~010 | 비동기 큐 |
 | JOB-006 | HEATMAP_REALTIME | 1분 | 최근 1시간(LAST_1H) 히트맵 셀 집계 · intensity 정규화 분모(maxCount) 산출 | 데이터 부족 시 LAST_24H 폴백 | heatmap_cells | MAP-008~016 | 스케줄러 |
 | JOB-007 | HEATMAP_PERIODIC | 10분 | LAST_24H·WEEKLY·MONTHLY 히트맵 및 후보 사진 최대 10장 집계 | 작성자 연속 중복 제거 | heatmap_cells | MAP-012, MAP-022~025 | 스케줄러 |
 | JOB-008 | RANKING_RECALC | 주기 + 수동 | 장소 점수·기간·테마·이전 순위 집계 | 결정적 보조 정렬 | place_rankings | RNK-001~010 | 스케줄러 |
 | JOB-013 | POST_RANKING_RECALC | 10분 + 수동 | 기간(DAY/WEEK/MONTH/ALL)별 게시글 인기 점수·순위 집계 | 결정적 보조 정렬(score DESC, post_id ASC); 조회 시 계산 금지 | post_rankings, posts, likes, comments | PST-035, CMU-002, CMU-008~009 | 스케줄러 |
-| JOB-009 | COUNTER_RECONCILE | 매일 새벽 | 팔로워·게시글·뱃지 등 비정규화 카운터 보정 | 실제 COUNT와 대조 | users, posts, tags | SOC-008, SYS-007 | 스케줄러 |
+| JOB-009 | COUNTER_RECONCILE | 매일 05:10 KST + 수동 | 팔로워·게시글·장소·댓글·태그·뱃지·행사 카운터 보정 | 원본 관계 COUNT와 대조 | users, places, posts, comments, tags, badges, events | SOC-008, SYS-007, SYS-015 | 스케줄러·관리자 API 202 |
 | JOB-010 | ACCOUNT_PURGE | 매일 05:00 | 탈퇴 30일 경과 계정·S3 객체 물리 삭제 | 감사 로그 보존 | users, account_deletion_logs | USER-019 | 스케줄러 |
 | JOB-011 | POST_MEDIA_PURGE | 매일 | 게시글 삭제 30일 경과 미디어 삭제 | 방문·뱃지 유지 | posts, post_images | PST-038~039 | 스케줄러 |
 | JOB-012 | NOTIFICATION_PURGE | 매일 | 읽은 지 90일 지난 알림 삭제 | 보존기간 90일 고정 (NTF-014) | notifications | NTF-014 | 스케줄러 |
@@ -1925,8 +1927,8 @@
 | SCH-007 | 태그 검색 | 회원·비회원 | Should | API 직접 | API-CMU-013, API-SCH-001 |  | 엔드포인트 계약에 직접 반영 |
 | SCH-008 | 지역 필터 전환 | 회원·비회원 | Should | API 직접 | API-SCH-001 |  | SearchResult.matchedRegion으로 필터 전환 |
 | SCH-009 | 홈 진입 시 필터 프리필 | 회원·비회원 | Must | API 직접 | API-SCH-001 |  | 엔드포인트 계약에 직접 반영 |
-| SCH-010 | 인기 검색어 | 회원·비회원 | Could | API 직접 | API-SCH-002 |  | 엔드포인트 계약에 직접 반영 |
-| SCH-011 | 최근 검색어 | 회원 | Could | API 직접 | API-SCH-003, API-SCH-004 |  | 엔드포인트 계약에 직접 반영 |
+| SCH-010 | 인기 검색어 | 회원·비회원 | Could | API 직접 | API-SCH-002 |  | 최근 7일 검색 로그 집계, Redis 10분 캐시, 로그 30일 보존 |
+| SCH-011 | 최근 검색어 | 회원 | Could | API 직접 | API-SCH-003, API-SCH-004 |  | Redis 사용자별 최대 20개, TTL 30일; 동일 검색어는 최신 순서로 갱신 |
 
 ### 공통 · 운영
 
@@ -1942,7 +1944,7 @@
 | SYS-008 | 표시 용어 적용 | 시스템 | Must | 클라이언트 | - | - | 앱 UI/상태 관리 규칙 |
 | SYS-009 | 식별자 분리 원칙 | 시스템 | Must | API 내부 | - | - | 공통 미들웨어·도메인 서비스·저장 규칙 |
 | SYS-010 | UI 다국어 지원 | 회원·비회원 | Should | API 직접 | API-PST-006 |  | 엔드포인트 계약에 직접 반영 |
-| SYS-011 | 텍스트 확장 대응 | 시스템 | Should | API 내부 | - | - | 공통 미들웨어·도메인 서비스·저장 규칙 |
+| SYS-011 | 텍스트 확장 대응 | 시스템 | Should | 클라이언트 | - | - | Flutter 후속 작업. 이번 백엔드 범위 제외 |
 | SYS-012 | 관광정보 다국어 연동 | 시스템 | Should | API 직접 | API-PLC-005 | - | place_details (place_id, language_code) 단위 지연 적재 |
 | SYS-013 | API 문서 제공 | 관리자 | Must | API 내부 | - | - | 공통 미들웨어·도메인 서비스·저장 규칙 |
 | SYS-014 | CORS 설정 | 시스템 | Must | API 내부 | - | - | 공통 미들웨어·도메인 서비스·저장 규칙 |
@@ -1950,12 +1952,12 @@
 | SYS-016 | 요청 추적 로그 | 시스템 | Should | API 직접 | API-ADM-002 |  | 엔드포인트 계약에 직접 반영 |
 | SYS-017 | 신고 검토 | 관리자 | Should | API 직접 | API-ADM-009, API-ADM-010 |  | 엔드포인트 계약에 직접 반영 |
 | SYS-018 | 목록 응답 경량화 | 시스템 | Must | API 직접 | API-PLC-003, API-PST-004 |  | 엔드포인트 계약에 직접 반영 |
-| SYS-019 | 조회 캐시 | 시스템 | Should | API 내부 | - | - | 공통 미들웨어·도메인 서비스·저장 규칙 |
+| SYS-019 | 조회 캐시 | 시스템 | Should | API 내부 | API-PLC-001, API-PLC-002, API-PLC-005 | - | 시도·시군구 24시간, 장소 상세 10분, Redis 장애 시 DB 폴백 |
 | SYS-020 | 업로드 주소 만료 | 시스템 | Must | API 직접 | API-PST-001 |  | 엔드포인트 계약에 직접 반영 |
 | SYS-021 | 공개 이미지 EXIF 제거 | 시스템 | Must | 배치 | - | JOB-003 | 스케줄·비동기 작업으로 구현 |
 
 
 ---
 
-원본 스프레드시트: [`specs/snaphere-requirements-spec-v1.1.5.xlsx`](specs/snaphere-requirements-spec-v1.1.5.xlsx) · [`specs/snaphere-api-spec-v1.1.5.xlsx`](specs/snaphere-api-spec-v1.1.5.xlsx)
+원본 스프레드시트: [`specs/snaphere-requirements-spec-v1.1.7.xlsx`](specs/snaphere-requirements-spec-v1.1.7.xlsx) · [`specs/snaphere-api-spec-v1.1.7.xlsx`](specs/snaphere-api-spec-v1.1.7.xlsx)
 변경 이력: [`08-spec-changelog.md`](08-spec-changelog.md)

@@ -6,6 +6,7 @@ import com.snaphere.api.media.storage.MediaStorageProperties;
 import com.snaphere.api.media.storage.MediaUrlResolver;
 import com.snaphere.api.post.entity.PostImageEntity;
 import com.snaphere.api.post.repository.PostImageRepository;
+import com.snaphere.api.post.repository.PostRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,9 +39,11 @@ import static org.mockito.Mockito.when;
 class PostImagePostProcessorTest {
 
     private static final long POST_ID = 42L;
-    private static final String KEY = "posts/11111111-2222-3333-4444-555555555555/abc.webp";
+    private static final String KEY = "originals/posts/11111111-2222-3333-4444-555555555555/abc.webp";
 
     @Mock private PostImageRepository postImages;
+    @Mock private PostRepository posts;
+    @Mock private MediaProcessingStateStore states;
 
     private InMemoryMediaObjectStore store;
     private PostImagePostProcessor processor;
@@ -50,7 +53,8 @@ class PostImagePostProcessorTest {
         store = new InMemoryMediaObjectStore();
         MediaUrlResolver urls = new MediaUrlResolver(new MediaStorageProperties(
                 "stub", "b", "ap-northeast-2", "https://cdn.test", Duration.ofMinutes(5), 1));
-        processor = new PostImagePostProcessor(postImages, store, urls);
+        processor = new PostImagePostProcessor(postImages, store, urls, posts, states);
+        when(states.begin(POST_ID)).thenReturn(1);
         when(postImages.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
     }
 
@@ -74,7 +78,7 @@ class PostImagePostProcessorTest {
     }
 
     @Test
-    @DisplayName("공개 키를 EXIF 없는 이미지로 덮어쓴다 — 키는 그대로 쓴다")
+    @DisplayName("비공개 원본과 분리된 공개 키에 EXIF 없는 이미지를 쓴다")
     void 공개키_덮어쓰기() throws IOException {
         byte[] original = JpegFixtures.jpegWithExif(800, 600);
         store.put(KEY, original, "image/jpeg");
@@ -82,8 +86,9 @@ class PostImagePostProcessorTest {
 
         processor.process(POST_ID);
 
-        assertThat(store.get(KEY)).isPresent();
-        byte[] published = store.get(KEY).get();
+        String publicKey=MediaObjectKeys.publicImage(KEY);
+        assertThat(store.get(publicKey)).isPresent();
+        byte[] published = store.get(publicKey).get();
         assertThat(JpegFixtures.contains(published, JpegFixtures.EXIF_MARKER)).isFalse();
         assertThat(JpegFixtures.contains(published, JpegFixtures.FAKE_GPS)).isFalse();
         // 단색 이미지는 재인코딩해도 픽셀 바이트가 같을 수 있다. 이 커밋이 보장하는 것은
@@ -136,12 +141,13 @@ class PostImagePostProcessorTest {
     void 재실행_안전() throws IOException {
         store.put(KEY, JpegFixtures.jpeg(800, 600), "image/jpeg");
         PostImageEntity done = newImage();
-        done.completePostProcessing("https://cdn.test/thumbs/x.jpg", "b".repeat(64), null);
+        done.completePostProcessing(MediaObjectKeys.publicImage(KEY),
+                "https://cdn.test/public/thumbs/x.jpg", "b".repeat(64), null);
         when(postImages.findByPostIdOrderBySortOrder(POST_ID)).thenReturn(List.of(done));
 
         processor.process(POST_ID);
 
-        assertThat(store.get(MediaObjectKeys.original(KEY))).isEmpty();
+        assertThat(store.get(MediaObjectKeys.original(KEY))).isPresent();
         verify(postImages, never()).saveAndFlush(any());
     }
 

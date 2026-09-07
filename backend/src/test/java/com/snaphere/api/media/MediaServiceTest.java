@@ -57,7 +57,7 @@ class MediaServiceTest {
 
         assertThat(urls).hasSize(4);
         assertThat(urls).allSatisfy(url -> {
-            assertThat(url.imageKey()).startsWith("posts/" + USER_ID + "/");
+            assertThat(url.imageKey()).startsWith("originals/posts/" + USER_ID + "/");
             assertThat(url.imageKey()).endsWith(".jpg");
             assertThat(url.headers()).containsEntry("Content-Type", "image/jpeg");
         });

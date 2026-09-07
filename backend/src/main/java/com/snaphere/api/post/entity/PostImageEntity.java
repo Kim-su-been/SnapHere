@@ -87,7 +87,9 @@ public class PostImageEntity {
     }
 
     /** 후처리 배치가 채운다. (PST-019) */
-    public void completePostProcessing(String thumbnailUrl, String imageHash, BigDecimal aspectRatio) {
+    public void completePostProcessing(String publicImageKey, String thumbnailUrl,
+                                       String imageHash, BigDecimal aspectRatio) {
+        this.imageKey = publicImageKey;
         this.thumbnailUrl = thumbnailUrl;
         this.imageHash = imageHash;
         if (aspectRatio != null) {

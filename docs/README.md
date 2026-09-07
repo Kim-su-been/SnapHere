@@ -77,7 +77,7 @@ main
 | 07 | [07-decision-log.md](07-decision-log.md) | 제품 미확정사항 및 구현 의사결정 이력 |
 | 08 | [08-spec-changelog.md](08-spec-changelog.md) | 명세 변경 이력 — 버전별 변경 내역과 작성 규칙 |
 | 09 | [09-git-strategy.md](09-git-strategy.md) | Git 브랜치 전략, 커밋·PR 규칙 |
-| 11 | [11-db-engine-decision.md](11-db-engine-decision.md) | DB 엔진 결정 (Percona PostgreSQL 17.10.2 + PostGIS 3.5.7) |
+| 11 | [11-db-engine-decision.md](11-db-engine-decision.md) | DB 엔진 결정 (Percona PostgreSQL 17.10.2 + PostGIS 3.6.2) |
 | 12 | [12-db-schema.dbml](12-db-schema.dbml) | DB 스키마 — dbdiagram.io ERD 소스. 현재 게시글 도메인 8개 테이블 |
 | 13 | [13-flutter-bootstrap-plan.md](13-flutter-bootstrap-plan.md) | Flutter 앱 초기 구성 계획 |
 | — | [specs/](specs) | 스프레드시트 원본 (.xlsx) |
@@ -103,4 +103,4 @@ main
 01~03이 정본이다. `.md` 는 GitHub에서 바로 읽고 PR diff로 변경을 확인하기 위한 것이고,
 편집은 `specs/` 의 스프레드시트에서 한 뒤 `.md` 를 다시 뽑는다. **`.md` 를 직접 고치지 않는다** — 다음 변환에서 덮어써진다.
 
-세 문서는 **같은 버전 번호로 함께 올린다** (현재 v1.1.4). 규칙은 [08-spec-changelog.md](08-spec-changelog.md) 에 있다.
+세 문서는 **같은 버전 번호로 함께 올린다** (현재 v1.1.7). 규칙은 [08-spec-changelog.md](08-spec-changelog.md) 에 있다.

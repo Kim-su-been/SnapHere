@@ -14,22 +14,48 @@ package com.snaphere.api.media.storage;
 public final class MediaObjectKeys {
 
     private static final String ORIGINAL_PREFIX = "originals/";
-    private static final String THUMBNAIL_PREFIX = "thumbs/";
+    private static final String PUBLIC_PREFIX = "public/";
+    private static final String THUMBNAIL_PREFIX = "public/thumbs/";
 
     private MediaObjectKeys() {
     }
 
     /** 좌표가 남은 원본 보관 키. 공개 경로가 아니다 — 버킷 정책에서 비공개로 둬야 한다. */
     public static String original(String publicKey) {
-        return ORIGINAL_PREFIX + publicKey;
+        return publicKey.startsWith(ORIGINAL_PREFIX) ? publicKey : ORIGINAL_PREFIX + publicKey;
     }
 
-    public static String thumbnail(String publicKey) {
-        return THUMBNAIL_PREFIX + publicKey;
+    /** 비공개 원본에 대응하는 EXIF 제거 공개 객체 키. */
+    public static String publicImage(String originalKey) {
+        String value = originalKey.startsWith(ORIGINAL_PREFIX)
+                ? originalKey.substring(ORIGINAL_PREFIX.length()) : originalKey;
+        return PUBLIC_PREFIX + value;
+    }
+
+    public static String thumbnail(String originalKey) {
+        String value = originalKey.startsWith(ORIGINAL_PREFIX)
+                ? originalKey.substring(ORIGINAL_PREFIX.length()) : originalKey;
+        return THUMBNAIL_PREFIX + value;
     }
 
     public static boolean isDerived(String objectKey) {
         return objectKey != null
                 && (objectKey.startsWith(ORIGINAL_PREFIX) || objectKey.startsWith(THUMBNAIL_PREFIX));
+    }
+
+    public static boolean isPrivateOriginal(String objectKey) {
+        return objectKey != null && objectKey.startsWith(ORIGINAL_PREFIX);
+    }
+
+    public static String privateOriginalForPublic(String publicKey) {
+        String value=publicKey.startsWith(PUBLIC_PREFIX)
+                ? publicKey.substring(PUBLIC_PREFIX.length()) : publicKey;
+        return ORIGINAL_PREFIX+value;
+    }
+
+    public static String thumbnailForPublic(String publicKey) {
+        String value=publicKey.startsWith(PUBLIC_PREFIX)
+                ? publicKey.substring(PUBLIC_PREFIX.length()) : publicKey;
+        return THUMBNAIL_PREFIX+value;
     }
 }

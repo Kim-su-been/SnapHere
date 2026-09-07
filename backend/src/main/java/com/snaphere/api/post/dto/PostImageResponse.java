@@ -7,8 +7,7 @@ import java.math.BigDecimal;
 /**
  * 명세: 3. 응답 스키마 &gt; PostImage
  *
- * <p>{@code thumbnailUrl} 은 후처리 배치(JOB-003)가 채우기 전까지 비어 있어, 그동안은 원본 주소를
- * 대신 준다. 앱이 null 을 받아 빈 카드를 그리는 것보다 낫다 (PST-019).
+ * <p>이 DTO는 후처리가 끝난 공개 이미지에만 사용한다. 비공개 원본 URL로 폴백하지 않는다.
  */
 public record PostImageResponse(
         String postImageId,
@@ -21,7 +20,7 @@ public record PostImageResponse(
     public static final BigDecimal DEFAULT_ASPECT_RATIO = new BigDecimal("0.8000");
 
     public static PostImageResponse from(PostImageEntity image, String imageUrl) {
-        String thumbnail = image.getThumbnailUrl() == null ? imageUrl : image.getThumbnailUrl();
+        String thumbnail = image.getThumbnailUrl();
         BigDecimal ratio = image.getAspectRatio() == null ? DEFAULT_ASPECT_RATIO : image.getAspectRatio();
         return new PostImageResponse(
                 String.valueOf(image.getPostImageId()), imageUrl, thumbnail, ratio, image.getSortOrder());

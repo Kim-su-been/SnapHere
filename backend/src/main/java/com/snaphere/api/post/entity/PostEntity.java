@@ -143,6 +143,22 @@ public class PostEntity {
         return true;
     }
 
+    /** 비공개 원본의 후처리가 끝날 때까지 공개 조회에서 숨긴다. (SYS-021) */
+    public void beginMediaProcessing() {
+        if (status == PostStatus.ACTIVE) {
+            status = PostStatus.HIDDEN;
+            updatedAt = OffsetDateTime.now();
+        }
+    }
+
+    /** 미디어 처리 성공 시에만 공개 상태로 전환한다. */
+    public void completeMediaProcessing() {
+        if (status == PostStatus.HIDDEN) {
+            status = PostStatus.ACTIVE;
+            updatedAt = OffsetDateTime.now();
+        }
+    }
+
     /** 논리 삭제. 행을 지우지 않아 방문 기록·뱃지가 함께 사라지지 않는다. (PST-043) */
     public void softDelete() {
         this.status = PostStatus.DELETED;
