@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:snap_here/src/app/theme/app_tokens.dart';
 import 'package:snap_here/src/core/ui/design_icon.dart';
 import 'package:snap_here/src/core/ui/paged_sliver.dart';
@@ -91,6 +92,12 @@ class _BadgeRow extends StatelessWidget {
     ),
     clipBehavior: Clip.antiAlias,
     child: InkWell(
+      onTap: () => showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (_) => BadgeDetailSheet(badgeId: badge.id),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -129,6 +136,68 @@ class _BadgeRow extends StatelessWidget {
           ],
         ),
       ),
+    ),
+  );
+}
+
+class BadgeDetailSheet extends ConsumerWidget {
+  const BadgeDetailSheet({required this.badgeId, super.key});
+  final String badgeId;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => SafeArea(
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      child: ref
+          .watch(badgeDetailProvider(badgeId))
+          .when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, _) => RetryMessage(
+              message: '뱃지 상세를 불러오지 못했어요',
+              onRetry: () => ref.invalidate(badgeDetailProvider(badgeId)),
+            ),
+            data: (detail) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: SizedBox.square(
+                    dimension: 64,
+                    child: ClipOval(
+                      child: RemoteImage(url: detail.badge.iconUrl),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  detail.badge.name,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (detail.badge.description case final description?) ...[
+                  const SizedBox(height: 12),
+                  Text(description, textAlign: TextAlign.center),
+                ],
+                const SizedBox(height: 16),
+                Text(
+                  '진행 ${detail.currentValue} / ${detail.targetValue} · ${detail.earnedCount}명 획득',
+                  textAlign: TextAlign.center,
+                ),
+                if (detail.sourcePostId case final postId?) ...[
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: () {
+                      context.pop();
+                      context.push('/photos/$postId');
+                    },
+                    child: const Text('뱃지를 획득한 게시글 보기'),
+                  ),
+                ],
+              ],
+            ),
+          ),
     ),
   );
 }
