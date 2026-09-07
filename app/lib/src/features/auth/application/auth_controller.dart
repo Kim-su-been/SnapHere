@@ -58,22 +58,25 @@ class AuthController extends AsyncNotifier<AuthSession?> {
     }
   }
 
-  Future<void> signInWithGoogle() async {
+  Future<bool> signInWithGoogle() async {
+    final previous = state.value;
     state = const AsyncLoading();
     try {
       final credential = await ref.read(googleIdentityClientProvider).signIn();
       final session = await _repository.exchangeGoogleCredential(credential);
       await _store.write(session);
       state = AsyncData(session);
+      return true;
     } on AuthFailure catch (error, stackTrace) {
       if (error.isCancellation) {
-        state = const AsyncData(null);
-        return;
+        state = AsyncData(previous);
+        return false;
       }
       state = AsyncError(error, stackTrace);
     } on Object catch (error, stackTrace) {
       state = AsyncError(const AuthFailure('로그인 중 오류가 발생했습니다.'), stackTrace);
     }
+    return false;
   }
 
   Future<void> continueAsGuest() async {

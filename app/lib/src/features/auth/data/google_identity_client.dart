@@ -1,22 +1,21 @@
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:snap_here/src/features/auth/data/google_identity_configuration.dart';
 import 'package:snap_here/src/features/auth/domain/auth_models.dart';
 import 'package:snap_here/src/features/auth/domain/auth_repository.dart';
 
 class AndroidGoogleIdentityClient implements GoogleIdentityClient {
-  AndroidGoogleIdentityClient({
-    GoogleSignIn? signIn,
-    this._serverClientId = const String.fromEnvironment(
-      'GOOGLE_SERVER_CLIENT_ID',
-    ),
-  }) : _signIn = signIn ?? GoogleSignIn.instance;
+  AndroidGoogleIdentityClient({GoogleSignIn? signIn, String? serverClientId})
+    : _signIn = signIn ?? GoogleSignIn.instance,
+      _serverClientId = serverClientId ?? resolveGoogleServerClientId();
 
   final GoogleSignIn _signIn;
-  final String _serverClientId;
+  final String? _serverClientId;
   Future<void>? _initialization;
 
   Future<void> _initialize() {
     return _initialization ??= _signIn.initialize(
-      serverClientId: _serverClientId.isEmpty ? null : _serverClientId,
+      serverClientId: _serverClientId,
     );
   }
 
@@ -39,8 +38,14 @@ class AndroidGoogleIdentityClient implements GoogleIdentityClient {
         photoUrl: account.photoUrl,
       );
     } on GoogleSignInException catch (error) {
+      if (kDebugMode) debugPrint('Google sign-in result: ${error.code.name}');
       if (error.code == GoogleSignInExceptionCode.canceled) {
         throw const AuthFailure('Google 로그인이 취소되었습니다.', isCancellation: true);
+      }
+      if (error.code == GoogleSignInExceptionCode.clientConfigurationError) {
+        throw const AuthFailure(
+          'Google 로그인 설정을 확인해 주세요. OAuth 클라이언트 ID와 Android 앱 등록 정보가 필요합니다.',
+        );
       }
       throw AuthFailure(error.description ?? 'Google 로그인에 실패했습니다.');
     }

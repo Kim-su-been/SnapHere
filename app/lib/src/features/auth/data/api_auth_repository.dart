@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:snap_here/src/core/network/api_client.dart';
@@ -24,17 +26,52 @@ class ApiAuthRepository implements AuthRepository {
   Future<AuthSession> exchangeGoogleCredential(
     GoogleIdentityCredential credential,
   ) async {
-    final data = jsonMap(
-      await _api.post(
-        '/auth/google',
-        body: {
-          'idToken': credential.idToken,
-          'deviceId': await _deviceId(),
-          'platform': Platform.isIOS ? 'IOS' : 'ANDROID',
-        },
-      ),
-    );
-    return _sessionFromAuthResult(data);
+    try {
+      final data = jsonMap(
+        await _api.post(
+          '/auth/google',
+          body: {
+            'idToken': credential.idToken,
+            'deviceId': await _deviceId(),
+            'platform': Platform.isIOS ? 'IOS' : 'ANDROID',
+          },
+        ),
+      );
+      return _sessionFromAuthResult(data);
+    } on ApiException catch (error) {
+      if (kDebugMode) {
+        final code = error.code;
+        final safeCode =
+            code != null && RegExp(r'^[A-Z][A-Z0-9_]{0,63}$').hasMatch(code)
+            ? code
+            : 'UNKNOWN';
+        debugPrint(
+          'Google token exchange failed: HTTP ${error.statusCode}, $safeCode',
+        );
+      }
+      throw switch (error.code) {
+        'AUTH_AUDIENCE_MISMATCH' => const AuthFailure(
+          '앱과 서버의 Google 로그인 설정이 일치하지 않아요. 서버 설정 반영 후 다시 시도해 주세요.',
+        ),
+        'AUTH_INVALID_GOOGLE_TOKEN' => const AuthFailure(
+          'Google 인증을 확인하지 못했어요. 다시 로그인해 주세요.',
+        ),
+        'USER_RECOVERY_EXPIRED' => const AuthFailure(
+          '계정 복구 기간이 지났어요. 관리자에게 문의해 주세요.',
+        ),
+        _ => AuthFailure(
+          error.statusCode != null && error.statusCode! >= 500
+              ? '로그인 서버에 오류가 발생했어요. 잠시 후 다시 시도해 주세요.'
+              : '서버에서 로그인을 처리하지 못했어요. 다시 시도해 주세요.',
+        ),
+      };
+    } on TimeoutException {
+      throw const AuthFailure('로그인 서버의 응답이 늦어지고 있어요. 잠시 후 다시 시도해 주세요.');
+    } on SocketException {
+      throw const AuthFailure('로그인 서버에 연결할 수 없어요. 네트워크와 서버 연결을 확인해 주세요.');
+    } on http.ClientException {
+      throw const AuthFailure('로그인 서버에 연결할 수 없어요. 네트워크와 서버 연결을 확인해 주세요.');
+    }
   }
 
   @override
