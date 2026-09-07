@@ -277,7 +277,6 @@ class _Footer extends StatelessWidget {
 }
 
 /// Figma가 `2시간 전`, `3시간 전`처럼 상대 시각을 쓴다.
-@visibleForTesting
 String formatRelativeTime(DateTime createdAt, {DateTime? now}) {
   final elapsed = (now ?? DateTime.now()).difference(createdAt);
   if (elapsed.inMinutes < 1) return '방금 전';
