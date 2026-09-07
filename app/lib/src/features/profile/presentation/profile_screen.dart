@@ -144,8 +144,72 @@ class _ProfileHeader extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: const BoxDecoration(
+              border: Border(
+                top: BorderSide(color: AppColors.border),
+                bottom: BorderSide(color: AppColors.border),
+              ),
+            ),
+            child: Row(
+              children: [
+                _Metric(label: '게시글', count: profile.stats.postCount),
+                _Metric(
+                  label: '팔로워',
+                  count: profile.stats.followerCount,
+                  onTap: () =>
+                      context.push('/users/${profile.userId}/followers'),
+                ),
+                _Metric(
+                  label: '팔로잉',
+                  count: profile.stats.followingCount,
+                  onTap: () =>
+                      context.push('/users/${profile.userId}/following'),
+                ),
+                if (own)
+                  _Metric(
+                    label: '뱃지',
+                    count: profile.stats.badgeCount,
+                    onTap: () => context.push('/profile/badges'),
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
     ),
   );
 }
+
+class _Metric extends StatelessWidget {
+  const _Metric({required this.label, required this.count, this.onTap});
+  final String label;
+  final int count;
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) => Expanded(
+    child: InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            '${formatCount(count)} $label',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: onTap == null ? AppColors.textPrimary : AppColors.brand,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+String formatCount(int value) => '$value'.replaceAllMapped(
+  RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+  (match) => '${match[1]},',
+);
