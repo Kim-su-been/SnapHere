@@ -50,7 +50,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (session.isGuest) {
         if (isEntry || path == '/profile-setup') return '/home';
         const guestProtected = {'/upload', '/notifications', '/profile'};
-        if (guestProtected.contains(path)) return '/login-required';
+        if (guestProtected.contains(path) || path.startsWith('/profile/')) {
+          return '/login-required';
+        }
         return null;
       }
 
@@ -119,6 +121,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/profile',
                 builder: (_, _) => const ProfileScreen(),
+              ),
+              GoRoute(
+                path: '/users/:userId',
+                builder: (_, state) =>
+                    ProfileScreen(userId: state.pathParameters['userId']!),
               ),
             ],
           ),
