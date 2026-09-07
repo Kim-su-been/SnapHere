@@ -18,6 +18,8 @@ import 'package:snap_here/src/features/home/presentation/home_screen.dart';
 import 'package:snap_here/src/features/map/presentation/map_screen.dart';
 import 'package:snap_here/src/features/profile/presentation/profile_screen.dart';
 import 'package:snap_here/src/features/rankings/presentation/rankings_screen.dart';
+import 'package:snap_here/src/features/social/data/api_social_repository.dart';
+import 'package:snap_here/src/features/social/presentation/connections_screen.dart';
 import 'package:snap_here/src/features/upload/presentation/upload_screen.dart';
 
 final _authRouterRefreshProvider = Provider<_AuthRouterRefresh>((ref) {
@@ -126,6 +128,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/users/:userId',
                 builder: (_, state) =>
                     ProfileScreen(userId: state.pathParameters['userId']!),
+                routes: [
+                  GoRoute(
+                    path: 'followers',
+                    builder: (_, state) => ConnectionsScreen(
+                      userId: state.pathParameters['userId']!,
+                      kind: ConnectionKind.followers,
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'following',
+                    builder: (_, state) => ConnectionsScreen(
+                      userId: state.pathParameters['userId']!,
+                      kind: ConnectionKind.following,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
