@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snap_here/src/app/router/app_shell.dart';
+import 'package:snap_here/src/app/router/login_navigation.dart';
 import 'package:snap_here/src/core/ui/feature_placeholder.dart';
 import 'package:snap_here/src/features/auth/application/auth_controller.dart';
 import 'package:snap_here/src/features/auth/domain/auth_models.dart';
@@ -51,21 +52,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (session.isGuest) {
-        if (isEntry || path == '/profile-setup') return '/home';
+        if (path == '/onboarding' || path == '/profile-setup') return '/home';
         const guestProtected = {'/upload', '/notifications', '/profile'};
         if (guestProtected.contains(path) || path.startsWith('/profile/')) {
-          return '/login-required';
+          return loginPromptLocation(state.uri.toString());
         }
         return null;
       }
 
       if (session.user!.needsProfileSetup) {
         if (path == '/profile-setup' || isLegal) return null;
-        return '/profile-setup';
+        return Uri(
+          path: '/profile-setup',
+          queryParameters: {
+            'from': loginReturnLocation(state.uri.queryParameters['from']),
+          },
+        ).toString();
       }
 
       if (isEntry || path == '/profile-setup' || path == '/login-required') {
-        return '/home';
+        return loginReturnLocation(state.uri.queryParameters['from']);
       }
       return null;
     },
@@ -78,7 +84,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/login-required',
-        builder: (_, _) => const LoginRequiredScreen(),
+        pageBuilder: (_, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          opaque: false,
+          barrierColor: const Color(0x990F1720),
+          barrierLabel: '로그인 안내',
+          transitionsBuilder: (_, animation, _, child) =>
+              FadeTransition(opacity: animation, child: child),
+          child: LoginRequiredScreen(
+            returnTo: state.uri.queryParameters['from'],
+          ),
+        ),
       ),
       GoRoute(
         path: '/legal/:type',

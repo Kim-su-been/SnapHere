@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snap_here/src/app/theme/app_tokens.dart';
 import 'package:snap_here/src/core/ui/design_icon.dart';
+import 'package:snap_here/src/app/router/login_navigation.dart';
+import 'package:snap_here/src/features/auth/application/auth_controller.dart';
 
-class AppShell extends StatelessWidget {
+class AppShell extends ConsumerWidget {
   const AppShell({required this.navigationShell, super.key});
 
   final StatefulNavigationShell navigationShell;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isGuest = ref.watch(authControllerProvider).value?.isGuest == true;
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: DecoratedBox(
@@ -31,6 +35,13 @@ class AppShell extends StatelessWidget {
                       label: const ['홈', '커뮤니티', '업로드', '이벤트', '마이'][index],
                       child: InkResponse(
                         onTap: () {
+                          if (isGuest && (index == 2 || index == 4)) {
+                            requestLogin(
+                              context,
+                              returnTo: index == 2 ? '/upload' : '/profile',
+                            );
+                            return;
+                          }
                           if (index == 2) {
                             context.push('/upload');
                             return;

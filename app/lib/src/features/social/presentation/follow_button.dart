@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:snap_here/src/app/router/login_navigation.dart';
 import 'package:snap_here/src/app/theme/app_tokens.dart';
 import 'package:snap_here/src/features/auth/application/auth_controller.dart';
 import 'package:snap_here/src/features/social/application/social_providers.dart';
@@ -36,7 +36,7 @@ class FollowButton extends ConsumerWidget {
             ? null
             : () async {
                 if (session?.isAuthenticated != true) {
-                  context.push('/login-required');
+                  requestLogin(context);
                   return;
                 }
                 try {
