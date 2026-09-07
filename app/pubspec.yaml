@@ -31,3 +31,4 @@ flutter:
   assets:
     - .env
     - assets/images/upload/
+    - assets/images/navigation/
