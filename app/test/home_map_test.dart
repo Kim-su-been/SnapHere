@@ -83,6 +83,44 @@ void main() {
     return repository;
   }
 
+  testWidgets('system back closes a region sheet before leaving home', (
+    tester,
+  ) async {
+    await mount(tester);
+    await tester.tap(find.byTooltip('지역 목록'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('전북'));
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(RegionPostsSheet), findsNothing);
+    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'reselecting a collapsed region restores the actual sheet snap height',
+    (tester) async {
+      await mount(tester);
+      await tester.tap(find.byTooltip('지역 목록'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('전북'));
+      await tester.pumpAndSettle();
+      final initialTop = tester.getTopLeft(find.byType(RegionPostsSheet)).dy;
+      await tester.drag(find.byType(RegionPostsSheet), const Offset(0, 260));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('📍 전북'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('전북').last);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.byType(RegionPostsSheet)).dy,
+        closeTo(initialTop, 1),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'region selection loads filtered posts, supports sheet expansion and close',
     (tester) async {
