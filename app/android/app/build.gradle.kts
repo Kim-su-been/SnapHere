@@ -8,6 +8,14 @@ plugins {
 }
 
 val keystoreProperties = Properties()
+// 로컬 앱 .env 또는 CI 환경변수로만 키를 주입한다. 값은 로그에 출력하지 않는다.
+val mapsProperties = Properties()
+val mapsEnvironmentFile = rootProject.file("../.env")
+if (mapsEnvironmentFile.exists()) {
+    mapsEnvironmentFile.reader(Charsets.UTF_8).use(mapsProperties::load)
+}
+val mapsApiKey = (System.getenv("GOOGLE_MAPS_API_KEY")
+    ?: mapsProperties.getProperty("GOOGLE_MAPS_API_KEY", "")).trim().trim('"', '\'')
 val keystorePropertiesFile = rootProject.file("key.properties")
 val hasReleaseSigning = keystorePropertiesFile.exists()
 if (hasReleaseSigning) {
@@ -37,6 +45,7 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["googleMapsApiKey"] = mapsApiKey
     }
 
     signingConfigs {
