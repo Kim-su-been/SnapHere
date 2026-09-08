@@ -138,6 +138,73 @@ class DeviceUploadRepository implements UploadRepository {
   }
 
   @override
+  Future<List<String>> suggestTags({
+    required String placeId,
+    String? eventId,
+    String? query,
+  }) async {
+    final token = accessToken;
+    if (token == null) return const [];
+    try {
+      final items = jsonMapList(
+        await _api.get(
+          '/tags/suggestions',
+          query: {
+            'placeId': _numericId(placeId, 'plc_'),
+            'eventId': ?eventId == null ? null : _numericId(eventId, 'evt_'),
+            'query': ?query,
+          },
+          accessToken: token,
+        ),
+      );
+      return items
+          .map((item) => item['name'] as String? ?? '')
+          .where((name) => name.isNotEmpty)
+          .toList(growable: false);
+    } on ApiException {
+      // 추천은 보조 기능이다. 실패해도 직접 입력으로 계속 쓸 수 있어야 한다.
+      return const [];
+    }
+  }
+
+  @override
+  Future<TierPreview?> previewTier({
+    required String placeId,
+    String? eventId,
+    required bool fromCamera,
+    DateTime? takenAt,
+    double? lat,
+    double? lng,
+  }) async {
+    final token = accessToken;
+    if (token == null) return null;
+    try {
+      return TierPreview.fromJson(
+        jsonMap(
+          await _api.post(
+            '/posts/tier-preview',
+            body: {
+              'placeId': int.parse(_numericId(placeId, 'plc_')),
+              if (eventId != null)
+                'eventId': int.parse(_numericId(eventId, 'evt_')),
+              'source': fromCamera ? 'CAMERA' : 'GALLERY',
+              'takenAt': ?takenAt?.toUtc().toIso8601String(),
+              'lat': ?lat,
+              'lng': ?lng,
+            },
+            accessToken: token,
+          ),
+        ),
+      );
+    } on ApiException {
+      return null;
+    }
+  }
+
+  String _numericId(String value, String prefix) =>
+      value.replaceFirst(prefix, '');
+
+  @override
   Future<UploadResult> createPost(UploadDraft draft) async {
     final token = accessToken;
     if (token == null) {
