@@ -11,3 +11,13 @@
 # 다른 문서에는 걸지 않는다. 같은 문단을 서로 고치는 파일에 union 을 쓰면 두 버전이
 # 나란히 남아 조용히 깨진 문서가 된다.
 docs/07-decision-log.md merge=union
+
+# 줄바꿈 규칙 (2026-09-08)
+#
+# 서버(Linux)에서 실행되는 파일은 LF 를 유지해야 한다. Windows 에서
+# core.autocrlf=true 로 체크아웃하면 CRLF 로 받게 되는데, 그 상태로 서버에
+# 올리면 Dockerfile 의 RUN 이나 셸 스크립트가 "\r: command not found" 로 깨진다.
+deploy/** text eol=lf
+Dockerfile text eol=lf
+*.sh text eol=lf
+gradlew text eol=lf
