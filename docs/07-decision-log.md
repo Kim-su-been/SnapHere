@@ -177,5 +177,15 @@
 
 실행 결과 (2026-09-07): 실기기 UX 후속 변경을 기능별 5개 커밋으로 생성하고 기존 홈·마이 구현 커밋과 함께 `origin/feature/frontend-home-profile-map001-user001`에 push했다. 최신 `origin/develop` 대비 뒤처진 커밋이 없음을 확인했으며, `develop` 대상 GitHub PR #51을 생성했다. PR 생성 시점의 head는 `a2c7b06e15c743ba2da276ea875782fcd6a02f97`이다. 사용자 소유 `backend/.vscode/launch.json`과 루트 `README.md`는 작업 트리에 남겨 두고 커밋하지 않았다.
 
+## 프론트엔드 공유 상세 · 상태 화면과 API 연결
+
+| 결정 ID | 날짜 | 주체 | 상태 | 선택지·배경 | 결정 내용 | 근거 | 영향 범위 | 관련 요구사항 | 대체/비고 |
+|---|---|---|---|---|---|---|---|---|---|
+| DEC-20260909-001 | 2026-09-09 | 사용자 | 확정·실행 요청 | 일부 화면만 구현 / Figma 07·08·12 전체 구현 | `develop`에서 `feature/frontend-shared-detail` 브랜치를 만들고 Figma `Wireframe_v3`의 `07 Shared Detail`(알림·설정·게시글 상세·장소 상세), `08 Error & Empty States`, `12 Comment CRUD Prototype`을 구현한다. `chore/frontend-clean-code`의 계층 분리(domain → data → application → presentation)를 따르되 해당 브랜치를 베이스로 삼지는 않는다. | 사용자가 화면 번호 7·8·12를 지정했고, Figma `Wireframe_v1`과 `Wireframe_v3`에서 같은 번호가 다른 화면을 가리켜 v3 기준으로 확정했다. clean-code PR이 아직 develop에 병합되지 않아 베이스로 삼으면 계속 벌어진다. | Flutter 게시글·장소·알림·설정 화면, 공용 상태 위젯, 라우터 | PST-001~049, CMU-012~023, PLC-012~015, NTF-011~013, USER-002, SYS-010 | 백엔드·DB 계약은 변경하지 않는다. 알림은 컨트롤러가 없어 목 데이터로 동작한다. |
+| DEC-20260909-002 | 2026-09-09 | 사용자 | 확정·실행 요청 | 화면만 마감 / 명세 97개 엔드포인트 전수 대조 후 프론트 연결 | 명세 `03-api-spec.md`의 97개 엔드포인트를 백엔드 컨트롤러·프론트 호출과 교차 대조하고, 백엔드가 구현된 것 중 프론트가 부르지 않던 엔드포인트를 모두 연결한다. | 화면 단위로만 보면 백엔드가 이미 제공하는 기능이 앱에서 빠진 것을 놓친다. 대조 결과 앱 대상 84개 중 30개가 미연결이었다. | 통합 검색·랭킹·지도·지역·태그·내 활동·설정·업로드·이벤트·소셜 | SCH-001~011, RNK-001~013, MAP-002~004, PLC-001~003, CMU-011~013, USER-003·006~008·011, VST-001~004, AUTH-005, SOC-005, EVT-002, PST-002·014 | 인기·팔로잉 피드(API-CMU-001·002)와 댓글 좋아요(API-CMU-009·010), 알림(API-NTF-001~004)은 백엔드가 없어 연결하지 못했다. |
+| DEC-20260909-003 | 2026-09-09 | 에이전트 자동 결정 | 확정·검증 한계 명시 | 테스트 통과까지 확인 / 정적 분석까지만 보증 | `dart analyze`로 `lib`·`test` 전체를 검증하고 테스트 33건을 작성했으나 실행하지는 못했다. 결과를 "정적 분석 통과, 테스트 미실행"으로 보고한다. | 작업 PC의 `flutter_tester.exe`가 dill 로드 직후 `0xC0000409`(STATUS_STACK_BUFFER_OVERRUN)로 종료된다. 신규 `flutter create` 프로젝트의 기본 테스트도 동일하게 실패해 코드 문제가 아님을 확인했다. `build/`·`.dart_tool` 캐시 삭제로도 재현된다. | 검증 범위 보고, 테스트 실행 환경 | 해당 없음 | 엔진 아티팩트 재다운로드(`flutter precache --force`)는 사용자 승인 없이 수행하지 않았다. |
+
+실행 결과 (2026-09-09): 공용 상태 위젯(`core/ui/state_views.dart`)과 상대 시각 표기(`core/ui/relative_time.dart`)를 분리하고, `features/post`·`place`·`notification`·`settings`·`region`·`activity`·`rankings`·`map` 계층을 추가했다. 플레이스홀더 라우트 5개 중 4개(`/photos/:photoId`, `/places/:placeId`, `/notifications`, `/regions/:regionId`, `/search`)를 실제 화면으로 교체하고 `/settings`·`/tags/:tagId`·`/me/activity`·`/photos/:photoId/comments`를 추가했다. 프론트 API 연결은 54/84에서 78/84로 늘었다. `dart format`·`dart analyze`는 통과했고 테스트 실행은 위 환경 문제로 하지 못했다.
+
 원본 스프레드시트: [`specs/snaphere-requirements-spec-v1.1.7.xlsx`](specs/snaphere-requirements-spec-v1.1.7.xlsx) · [`specs/snaphere-api-spec-v1.1.7.xlsx`](specs/snaphere-api-spec-v1.1.7.xlsx)
 변경 이력: [`08-spec-changelog.md`](08-spec-changelog.md)
