@@ -33,6 +33,136 @@ GitHub Secrets 에만 둔다.
 
 ---
 
+# 0단계 · AWS 리소스 만들기 (콘솔)
+
+아래 세 가지를 먼저 만든다. 이게 없으면 1단계부터 할 수 있는 게 없다.
+
+## Lightsail 인스턴스
+
+Lightsail 콘솔 > 인스턴스 생성
+
+| 항목 | 값 |
+|---|---|
+| 리전 | 서울 `ap-northeast-2` |
+| 플랫폼 | Linux/Unix |
+| 블루프린트 | **OS 전용 → Ubuntu 22.04 LTS** |
+| 플랜 | **2GB RAM / 2 vCPU** |
+
+블루프린트는 반드시 "OS 전용"을 고른다. 앱 블루프린트(LAMP·Node 등)를 고르면 이미
+깔린 웹서버가 80 포트를 물고 있어 nginx 컨테이너와 충돌한다. 우리는 전부 도커로 올린다.
+
+**고정 IP를 반드시 할당한다.** 네트워킹 탭 > 고정 IP 생성 > 인스턴스에 연결.
+기본 공인 IP 는 인스턴스를 중지·시작하면 바뀌고, 그러면 GitHub Secrets 의
+`SERVER_HOST` 가 죽어 배포가 실패한다.
+
+Ubuntu 블루프린트의 기본 로그인 사용자명은 `ubuntu` 다 — `SERVER_USER` 에 넣을 값이다.
+
+## S3 버킷
+
+| 항목 | 값 |
+|---|---|
+| 리전 | `ap-northeast-2` (Lightsail 과 같게) |
+| 이름 | 전역 유일. 예: `snaphere-media-prod` |
+| 모든 퍼블릭 액세스 차단 | **켜둔 채로 둔다** |
+| 버전 관리 | 끔 |
+
+퍼블릭 액세스를 열 필요가 없다. 업로드는 presigned PUT 이 서명으로 통과하고,
+읽기는 CloudFront OAC 가 담당한다. 여는 순간 `originals/` 의 좌표 남은 원본까지
+공개된다.
+
+CORS 는 설정하지 않아도 된다. CORS 는 브라우저 정책이고 우리 클라이언트는 모바일
+앱이다. 나중에 Flutter Web 을 붙이면 그때 추가한다.
+
+## IAM 사용자 + 정책
+
+프로그래매틱 액세스 전용 사용자를 만든다(콘솔 로그인 불필요). 루트 키나
+`AdministratorAccess` 키를 쓰지 않는다.
+
+인라인 정책:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SnapHereMediaObjects",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::<버킷>/*"
+    }
+  ]
+}
+```
+
+이 세 개면 충분한 이유:
+
+- `s3:PutObject` — presign 자체는 AWS 를 호출하지 않고 로컬에서 서명만 한다. 하지만
+  폰이 그 URL 로 PUT 할 때 **서명한 자격증명의 권한으로 실행**되므로 이게 없으면
+  폰이 403 을 받는다.
+- `s3:GetObject`, `s3:PutObject` — 후처리(`S3MediaObjectStore`)가 원본을 읽어
+  EXIF 제거 공개본과 썸네일을 쓴다.
+- `s3:DeleteObject` — 후처리·정리에서 객체를 지운다.
+- `CopyObject` 는 별도 액션이 없다. 소스 Get + 대상 Put 권한으로 동작한다.
+- `s3:ListBucket` 은 **넣지 않는다.** 코드가 목록 조회를 하지 않는다.
+
+발급된 액세스 키를 5단계에서 서버 `.env` 의 `AWS_ACCESS_KEY_ID` ·
+`AWS_SECRET_ACCESS_KEY` 에 넣는다.
+
+## CloudFront (읽기 경로)
+
+나중에 해도 되지만, 없으면 `MEDIA_PUBLIC_BASE_URL` 을 S3 주소로 둬야 하고 그러려면
+버킷을 공개해야 한다. 그 순간 `originals/` 가 함께 노출되므로 CloudFront 를 권한다.
+
+1. 배포 생성 > Origin 을 S3 버킷으로 지정
+2. Origin access 를 **OAC(Origin Access Control)** 로 생성 → 버킷 정책이 자동 추가된다
+3. **자동 추가된 버킷 정책의 `Resource` 를 아래처럼 좁힌다**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowCloudFrontReadPublicOnly",
+      "Effect": "Allow",
+      "Principal": { "Service": "cloudfront.amazonaws.com" },
+      "Action": "s3:GetObject",
+      "Resource": [
+        "arn:aws:s3:::<버킷>/public/*",
+        "arn:aws:s3:::<버킷>/profile/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "AWS:SourceArn": "arn:aws:cloudfront::<계정ID>:distribution/<배포ID>"
+        }
+      }
+    }
+  ]
+}
+```
+
+`originals/*` 를 "차단"하는 설정을 따로 만들지 않는다. CloudFront 는 기본 동작을
+반드시 하나 가져야 해서 경로별로 거부를 만들기가 번거롭다. **버킷 정책에서 읽기를
+허용할 접두어만 나열**하면 `originals/*` 요청은 S3 가 403 을 돌려준다. 이게 더 단순하고
+빠뜨릴 여지가 없다.
+
+허용 접두어가 둘인 이유는 실제 키 규칙이 이렇게 생겼기 때문이다
+(`MediaService.buildObjectKey` + `MediaObjectKeys`):
+
+| 단계 | 키 |
+|---|---|
+| presign 발급 (게시글) | `originals/posts/{userId}/{uuid}.{ext}` ← 폰이 PUT 하는 대상 |
+| presign 발급 (프로필) | `profile/{userId}/{uuid}.{ext}` — `originals/` 없음 |
+| 후처리 공개본 | `public/posts/{userId}/{uuid}.{ext}` |
+| 후처리 썸네일 | `public/thumbs/posts/{userId}/{uuid}.{ext}` |
+| 원본 보관 | `originals/posts/...` (좌표 남음) |
+
+`public/*` 만 허용하면 **프로필 이미지가 깨진다** — 프로필 키에는 `public/` 접두어가
+없다. 확장자는 `AllowedImageType`(jpeg·png·heic·webp)이 정하므로 `.jpg` 고정이 아니다.
+
+마지막으로 `MEDIA_PUBLIC_BASE_URL` 에 `https://<배포도메인>` 을 넣는다.
+
+---
+
 # 1단계 · 배포용 SSH 키 만들기 (PowerShell)
 
 Actions 가 서버에 접속할 전용 키다. 평소 쓰는 개인 키를 GitHub Secrets 에 넣지 말고
@@ -201,8 +331,13 @@ docker compose exec nginx nginx -s reload
 
 # 7단계 · GitHub Secrets 등록 (웹 화면)
 
-**이건 파일로 만들어 커밋하는 게 아니다.** 저장소 > **Settings** >
+**이건 파일로 만들어 커밋하는 게 아니다.** **Settings** >
 **Secrets and variables** > **Actions** > **New repository secret** 에서 웹으로 넣는다.
+
+⚠ **어느 저장소인지 주의한다.** PR 이 `jsy002514/SnapHere` 로 가고 워크플로도 거기서
+돈다. 그래서 Secrets 는 fork(`bada0310/SnapHere`)가 아니라 **`jsy002514/SnapHere`**
+쪽에 등록해야 한다. 그 저장소의 admin 권한이 없으면 직접 넣을 수 없으니 소유자에게
+아래 세 개의 등록을 요청한다.
 
 | 이름 | 값 |
 |---|---|
