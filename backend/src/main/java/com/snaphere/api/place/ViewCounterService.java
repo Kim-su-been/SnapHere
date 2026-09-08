@@ -8,12 +8,19 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.util.Set;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class ViewCounterService {
     private static final Logger log = LoggerFactory.getLogger(ViewCounterService.class);
     private static final String PREFIX = "place:view:";
+
+    /** SCAN 한 번에 받아 올 키 수. 크면 왕복이 줄고 작으면 한 번에 막는 시간이 짧아진다. */
+    private static final int SCAN_BATCH = 200;
     private final StringRedisTemplate redis;
     private final PlaceRepository places;
 
@@ -47,14 +54,25 @@ public class ViewCounterService {
 
     @Scheduled(cron = "${snaphere.jobs.view-flush-cron:0 * * * * *}", zone = "Asia/Seoul")
     public void flush() {
-        Set<String> keys;
-        try {
-            keys = redis.keys(PREFIX + "*");
+        // KEYS 가 아니라 SCAN 으로 훑는다.
+        //
+        // KEYS 는 키 공간 전체를 한 번에 훑는 O(N) 명령이고, 그동안 Redis 싱글스레드가
+        // 막힌다. 이 잡은 1분마다 돌고 place:view:* 는 조회된 장소마다 하나씩 생기므로,
+        // 장소가 늘면 매분 한 번씩 지도 캐시·최근 본 장소 조회까지 같이 멈춘다.
+        // SCAN 은 커서를 나눠 돌려주므로 한 번에 막는 시간이 COUNT 만큼으로 제한된다.
+        //
+        // 커서를 닫고 나서 DB 에 반영한다. 커서를 열어 둔 채 addViewCount 를 돌리면
+        // DB 왕복만큼 커넥션을 붙잡고 있게 된다.
+        List<String> keys = new ArrayList<>();
+        try (Cursor<String> cursor =
+                     redis.scan(ScanOptions.scanOptions().match(PREFIX + "*").count(SCAN_BATCH).build())) {
+            while (cursor.hasNext()) {
+                keys.add(cursor.next());
+            }
         } catch (RuntimeException e) {
             log.warn("조회수 키 조회 실패", e);
             return;
         }
-        if (keys == null) return;
         for (String key : keys) {
             Long delta = null;
             try {
