@@ -290,3 +290,20 @@ Desktop.ini
 **/Flutter/flutter_export_environment.sh
 **/Flutter/ephemeral/
 **/Runner/GeneratedPluginRegistrant.*
+
+# -----------------------------------------------------------------------------
+# 배포 산출물 (2026-09-08)
+# -----------------------------------------------------------------------------
+
+# GitHub Actions 가 bootJar 로 만들어 서버에 scp 하는 산출물.
+# 저장소에 들어갈 이유가 없고, 들어가면 저장소가 무거워지기만 한다.
+# gradle-wrapper.jar 는 빌드에 필요하므로 예외로 둔다.
+app.jar
+*.jar
+!**/gradle/wrapper/gradle-wrapper.jar
+
+# 로컬 실행 로그 (*.log 로 안 걸리는 것들)
+build-log.txt
+
+# Claude 작업 산출물. 로컬 참고용이라 저장소 공유 대상이 아니다.
+Claude outputs/
