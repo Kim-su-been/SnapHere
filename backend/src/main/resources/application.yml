@@ -50,6 +50,8 @@ snaphere:
     counter-reconcile-cron: ${COUNTER_RECONCILE_CRON:0 10 5 * * *}
     account-purge-cron: ${ACCOUNT_PURGE_CRON:0 0 5 * * *}
     search-log-purge-cron: ${SEARCH_LOG_PURGE_CRON:0 20 5 * * *}
+    # 만료된 리프레시 토큰 정리. 계정 파기·카운터 보정·검색로그 정리와 겹치지 않게 05:30.
+    refresh-token-purge-cron: ${REFRESH_TOKEN_PURGE_CRON:0 30 5 * * *}
   paging:
     default-size: 20               # SYS-003
     max-size: 50
