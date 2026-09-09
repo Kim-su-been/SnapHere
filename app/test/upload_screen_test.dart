@@ -74,6 +74,23 @@ class _StubUploadRepository implements UploadRepository {
       badgeDescription: '테스트 뱃지를 획득했어요!',
     );
   }
+
+  @override
+  Future<List<String>> suggestTags({
+    required String placeId,
+    String? eventId,
+    String? query,
+  }) async => const ['전주한옥마을'];
+
+  @override
+  Future<TierPreview?> previewTier({
+    required String placeId,
+    String? eventId,
+    required bool fromCamera,
+    DateTime? takenAt,
+    double? lat,
+    double? lng,
+  }) async => null;
 }
 
 Widget _wrap(UploadRepository repository) {
