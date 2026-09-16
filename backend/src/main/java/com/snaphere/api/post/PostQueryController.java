@@ -101,7 +101,7 @@ public class PostQueryController {
         Optional<UUID> viewerId = currentUserProvider.optional(httpRequest)
                 .map(CurrentUser::userId);
         PostDetailResponse detail = postQueryService.detail(
-                ExternalIds.parse(postId, "pst", ErrorCode.POST_NOT_FOUND), viewerId);
+                ExternalIds.parsePost(postId), viewerId);
 
         return ResponseEntity.ok(ApiResponse.ok(detail,
                 TraceIdFilter.currentTraceId(httpRequest)));

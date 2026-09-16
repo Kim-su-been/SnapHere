@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:snap_here/src/core/network/api_client.dart';
 import 'package:snap_here/src/core/network/cursor_page.dart';
 import 'package:snap_here/src/features/post/domain/post_models.dart';
+import 'package:snap_here/src/features/post/domain/post_id.dart';
 import 'package:snap_here/src/features/post/domain/post_repository.dart';
 
 class ApiPostRepository implements PostRepository {
@@ -11,8 +14,11 @@ class ApiPostRepository implements PostRepository {
   final ApiClient _client;
 
   @override
-  Future<PostDetail> fetchPost(String postId) async =>
-      PostDetail.fromJson(jsonMap(await _get('/posts/$postId')));
+  Future<PostDetail> fetchPost(String postId) => _guard(() async {
+    final response = await _get('/posts/${postApiId(postId)}')
+        .timeout(const Duration(seconds: 15));
+    return PostDetail.fromJson(jsonMap(response));
+  });
 
   @override
   Future<({int likeCount, bool isLiked})> setLiked(
@@ -51,7 +57,10 @@ class ApiPostRepository implements PostRepository {
 
   @override
   Future<void> deletePost(String postId) => _guard(
-    () => _client.delete('/posts/$postId', accessToken: _requireToken()),
+    () => _client.delete(
+      '/posts/${postApiId(postId)}',
+      accessToken: _requireToken(),
+    ),
   );
 
   @override
@@ -140,9 +149,32 @@ class ApiPostRepository implements PostRepository {
     try {
       return await run();
     } on ApiException catch (error) {
-      throw PostFailure(error.message);
+      throw PostFailure(
+        switch (error.code) {
+          'POST_NOT_FOUND' => '게시글을 찾을 수 없어요.',
+          'POST_NOT_VISIBLE' => '현재 볼 수 없는 게시글이에요.',
+          'POST_MEDIA_PROCESSING' => '사진을 처리하고 있어요. 잠시 후 다시 확인해 주세요.',
+          'POST_MEDIA_FAILED' => '사진 처리에 실패했어요. 사진을 다시 등록해 주세요.',
+          'AUTH_REQUIRED' => '로그인이 필요해요. 다시 로그인해 주세요.',
+          _ => switch (error.statusCode) {
+            404 => '게시글을 찾을 수 없어요.',
+            401 => '로그인이 필요해요. 다시 로그인해 주세요.',
+            403 => '이 게시글에 접근할 권한이 없어요.',
+            429 => '요청이 너무 많아요. 잠시 후 다시 시도해 주세요.',
+            _ => '서버가 요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.',
+          },
+        },
+        code: error.code,
+        statusCode: error.statusCode,
+      );
     } on PostFailure {
       rethrow;
+    } on TimeoutException {
+      throw const PostFailure('응답이 늦어지고 있어요. 잠시 후 다시 시도해 주세요.');
+    } on FormatException {
+      throw const PostFailure('게시글 정보를 읽지 못했어요. 잠시 후 다시 시도해 주세요.');
+    } on TypeError {
+      throw const PostFailure('게시글 정보를 읽지 못했어요. 잠시 후 다시 시도해 주세요.');
     } on Object {
       throw const PostFailure('네트워크에 연결할 수 없어요.');
     }

@@ -19,4 +19,6 @@ final postRepositoryProvider = Provider<PostRepository>((ref) {
 
 final postDetailProvider = FutureProvider.family<PostDetail, String>(
   (ref, postId) => ref.watch(postRepositoryProvider).fetchPost(postId),
+  // 404나 처리 상태 오류를 재시도 대기 화면으로 숨기지 않는다.
+  retry: (_, _) => null,
 );

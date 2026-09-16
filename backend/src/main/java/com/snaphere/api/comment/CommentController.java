@@ -1,5 +1,6 @@
 package com.snaphere.api.comment;
 
+import com.snaphere.api.auth.ExternalIds;
 import com.snaphere.api.comment.dto.CommentResponse;
 import com.snaphere.api.comment.dto.CommentThreadResponse;
 import com.snaphere.api.comment.dto.CreateCommentRequest;
@@ -51,7 +52,7 @@ public class CommentController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<CursorPage<CommentThreadResponse>>> threads(
-            @PathVariable long postId,
+            @PathVariable String postId,
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) Integer size,
             HttpServletRequest httpRequest) {
@@ -59,7 +60,7 @@ public class CommentController {
         Optional<UUID> viewerId = currentUserProvider.optional(httpRequest)
                 .map(CurrentUser::userId);
         CursorPage<CommentThreadResponse> page =
-                commentService.threads(postId, cursor, size, viewerId);
+                commentService.threads(ExternalIds.parsePost(postId), cursor, size, viewerId);
 
         return ResponseEntity.ok(ApiResponse.ok(page,
                 TraceIdFilter.currentTraceId(httpRequest)));
@@ -67,12 +68,12 @@ public class CommentController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<CommentResponse>> create(
-            @PathVariable long postId,
+            @PathVariable String postId,
             @Valid @RequestBody CreateCommentRequest request,
             HttpServletRequest httpRequest) {
 
         CurrentUser user = currentUserProvider.require(httpRequest);
-        CommentResponse created = commentService.create(postId, user.userId(), request);
+        CommentResponse created = commentService.create(ExternalIds.parsePost(postId), user.userId(), request);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok(created, TraceIdFilter.currentTraceId(httpRequest)));

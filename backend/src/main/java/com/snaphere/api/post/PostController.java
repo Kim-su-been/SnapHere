@@ -94,6 +94,6 @@ public class PostController {
     }
 
     private static long parsePostId(String postId) {
-        return ExternalIds.parse(postId, "pst", ErrorCode.POST_NOT_FOUND);
+        return ExternalIds.parsePost(postId);
     }
 }
