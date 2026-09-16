@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snap_here/src/features/auth/application/auth_controller.dart';
 import 'package:snap_here/src/features/upload/data/device_upload_repository.dart';
 import 'package:snap_here/src/features/upload/data/fake_upload_repository.dart';
+import 'package:snap_here/src/features/upload/domain/upload_failure.dart';
 import 'package:snap_here/src/features/upload/domain/upload_models.dart';
 import 'package:snap_here/src/features/upload/domain/upload_repository.dart';
 
@@ -322,6 +323,7 @@ class UploadController extends AsyncNotifier<UploadState> {
 
   Future<void> submit() async {
     final current = state.requireValue;
+    if (current.isSubmitting || current.step == UploadStep.complete) return;
     if (!_hasValidForm(current)) {
       _setData(current.copyWith(showValidation: true));
       return;
@@ -342,12 +344,14 @@ class UploadController extends AsyncNotifier<UploadState> {
           clearSubmitMessage: true,
         ),
       );
-    } catch (_) {
+    } catch (error) {
       if (!ref.mounted) return;
       _setData(
         state.requireValue.copyWith(
           isSubmitting: false,
-          submitMessage: '게시물을 등록하지 못했어요. 잠시 후 다시 시도해 주세요.',
+          submitMessage: error is UploadFailure
+              ? error.message
+              : const UploadFailure(UploadFailureReason.resultUnknown).message,
         ),
       );
     }
