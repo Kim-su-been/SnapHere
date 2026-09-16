@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snap_here/src/app/theme/app_theme.dart';
 import 'package:snap_here/src/features/upload/application/upload_controller.dart';
+import 'package:snap_here/src/features/upload/domain/upload_failure.dart';
 import 'package:snap_here/src/features/upload/domain/upload_models.dart';
 import 'package:snap_here/src/features/upload/domain/upload_repository.dart';
 import 'package:snap_here/src/features/upload/presentation/upload_screen.dart';
@@ -12,12 +15,15 @@ class _StubUploadRepository implements UploadRepository {
   _StubUploadRepository({
     this.hasMetadata = true,
     this.emptyGallery = false,
-    this.failSubmit = false,
+    this.submitFailure,
+    this.pendingSubmit,
   });
 
   final bool hasMetadata;
   final bool emptyGallery;
-  final bool failSubmit;
+  Object? submitFailure;
+  final Completer<UploadResult>? pendingSubmit;
+  int submitCount = 0;
   UploadDraft? submittedDraft;
 
   static const place = UploadPlace(
@@ -66,8 +72,10 @@ class _StubUploadRepository implements UploadRepository {
 
   @override
   Future<UploadResult> createPost(UploadDraft draft) async {
-    if (failSubmit) throw Exception('network error');
+    submitCount++;
+    if (submitFailure case final error?) throw error;
     submittedDraft = draft;
+    if (pendingSubmit case final pending?) return pending.future;
     return const UploadResult(
       postId: 'post-1',
       badgeTitle: '축제 참가 뱃지 획득!',
@@ -301,17 +309,67 @@ void main() {
     expect(find.text('업로드를 취소할까요?'), findsOneWidget);
   });
 
-  testWidgets('게시 실패 시 재시도 가능한 오류 메시지를 표시한다', (tester) async {
+  testWidgets('구체적인 오류를 표시하고 입력을 보존해 재시도할 수 있다', (tester) async {
     await tester.binding.setSurfaceSize(const Size(412, 893));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(_wrap(_StubUploadRepository(failSubmit: true)));
+    final repository = _StubUploadRepository(
+      submitFailure: const UploadFailure(UploadFailureReason.photoTooLarge),
+    );
+    await tester.pumpWidget(_wrap(repository));
     await tester.pumpAndSettle();
     await _goToForm(tester);
 
     await tester.tap(find.text('게시'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('게시물을 등록하지 못했어요'), findsOneWidget);
+    expect(find.textContaining('사진 용량이 업로드 한도를 넘었어요'), findsOneWidget);
+    expect(find.text('게시글 작성'), findsOneWidget);
+    expect(find.text('전주 한옥마을의 봄'), findsOneWidget);
     expect(find.text('게시'), findsOneWidget);
+    repository.submitFailure = null;
+    await tester.tap(find.text('게시'));
+    await tester.pumpAndSettle();
+    expect(find.text('업로드 완료!'), findsOneWidget);
+    expect(find.textContaining('사진 용량이 업로드 한도를 넘었어요'), findsNothing);
+  });
+
+  testWidgets('알 수 없는 등록 결과는 실패·재등록 안내 대신 확인을 요청한다', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(412, 893));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      _wrap(
+        _StubUploadRepository(submitFailure: Exception('unexpected response')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _goToForm(tester);
+    await tester.tap(find.text('게시'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('내 게시글을 먼저 확인해 주세요'), findsOneWidget);
+    expect(find.text('게시글 작성'), findsOneWidget);
+    expect(find.text('업로드 완료!'), findsNothing);
+  });
+
+  test('등록 처리 중 연속 제출과 완료 후 재제출은 추가 요청을 보내지 않는다', () async {
+    final pending = Completer<UploadResult>();
+    final repository = _StubUploadRepository(pendingSubmit: pending);
+    final container = ProviderContainer(
+      overrides: [uploadRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+    await container.read(uploadControllerProvider.future);
+    final controller = container.read(uploadControllerProvider.notifier);
+    await controller.showForm();
+    final first = controller.submit();
+    await controller.submit();
+    expect(repository.submitCount, 1);
+    pending.complete(const UploadResult(postId: 'pst_42'));
+    await first;
+    await controller.submit();
+    expect(repository.submitCount, 1);
+    expect(
+      container.read(uploadControllerProvider).requireValue.step,
+      UploadStep.complete,
+    );
   });
 
   testWidgets('가로 화면에서도 갤러리 레이아웃이 넘치지 않는다', (tester) async {

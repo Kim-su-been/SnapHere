@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:photo_manager/photo_manager.dart';
 import 'package:snap_here/src/core/network/api_client.dart';
+import 'package:snap_here/src/features/upload/domain/upload_failure.dart';
 import 'package:snap_here/src/features/upload/domain/upload_models.dart';
 import 'package:snap_here/src/features/upload/domain/upload_repository.dart';
 
@@ -20,6 +22,8 @@ class UploadLocationException implements Exception {
   @override
   String toString() => message;
 }
+
+enum _UploadStage { photos, preparation, transfer, submission }
 
 class DeviceUploadRepository implements UploadRepository {
   DeviceUploadRepository({
@@ -204,19 +208,37 @@ class DeviceUploadRepository implements UploadRepository {
 
   @override
   Future<UploadResult> createPost(UploadDraft draft) async {
-    final token = _requireAccessToken();
-    final photos = await Future.wait(draft.photos.map(_resolveOriginal));
-    final files = await Future.wait(photos.map(_fileInfo));
-    final uploadTargets = await _issueUploadTargets(files, token);
-    await _uploadFiles(uploadTargets, files);
-    final response = await _createPost(draft, photos, uploadTargets, token);
-    return _toUploadResult(response);
+    var stage = _UploadStage.photos;
+    try {
+      final token = _requireAccessToken();
+      final photos = await Future.wait(draft.photos.map(_resolveOriginal));
+      final files = await Future.wait(photos.map(_fileInfo));
+      stage = _UploadStage.preparation;
+      final uploadTargets = await _issueUploadTargets(files, token);
+      _validateUploadTargets(uploadTargets, files.length);
+      final primary = photos.firstWhere(
+        (photo) => photo.id == draft.primaryPhoto.id,
+      );
+      final body = _createPostBody(draft, photos, uploadTargets, primary);
+      stage = _UploadStage.transfer;
+      await _uploadFiles(uploadTargets, files);
+      // 이 시점 이후 통신 오류는 서버 저장 여부를 확정할 수 없다.
+      stage = _UploadStage.submission;
+      final response = await _api
+          .post('/posts', accessToken: token, body: body)
+          .timeout(const Duration(seconds: 15));
+      return _toUploadResult(jsonMap(response));
+    } on UploadFailure {
+      rethrow;
+    } catch (error) {
+      throw _uploadFailure(error, stage);
+    }
   }
 
   String _requireAccessToken() {
     final token = accessToken;
-    if (token == null) {
-      throw const UploadPermissionException('로그인이 필요한 기능입니다.');
+    if (token == null || token.trim().isEmpty) {
+      throw const UploadFailure(UploadFailureReason.loginRequired);
     }
     return token;
   }
@@ -225,18 +247,41 @@ class DeviceUploadRepository implements UploadRepository {
     List<({List<int> bytes, String mimeType})> files,
     String token,
   ) async => jsonMapList(
-    await _api.post(
-      '/media/presigned-urls',
-      accessToken: token,
-      body: {
-        'purpose': 'POST_IMAGE',
-        'files': [
-          for (final file in files)
-            {'mimeType': file.mimeType, 'sizeBytes': file.bytes.length},
-        ],
-      },
-    ),
+    await _api
+        .post(
+          '/media/presigned-urls',
+          accessToken: token,
+          body: {
+            'purpose': 'POST_IMAGE',
+            'files': [
+              for (final file in files)
+                {'mimeType': file.mimeType, 'sizeBytes': file.bytes.length},
+            ],
+          },
+        )
+        .timeout(const Duration(seconds: 15)),
   );
+
+  void _validateUploadTargets(
+    List<Map<String, Object?>> targets,
+    int photoCount,
+  ) {
+    if (targets.length != photoCount || targets.isEmpty) {
+      throw const UploadFailure(UploadFailureReason.preparationFailed);
+    }
+    for (final target in targets) {
+      final url = target['uploadUrl'];
+      final key = target['imageKey'];
+      final uri = url is String ? Uri.tryParse(url) : null;
+      if (uri == null ||
+          !uri.hasAuthority ||
+          (uri.scheme != 'https' && uri.scheme != 'http') ||
+          key is! String ||
+          key.isEmpty) {
+        throw const UploadFailure(UploadFailureReason.preparationFailed);
+      }
+    }
+  }
 
   Future<void> _uploadFiles(
     List<Map<String, Object?>> targets,
@@ -247,33 +292,13 @@ class DeviceUploadRepository implements UploadRepository {
       final url = target['uploadUrl']! as String;
       if (Uri.parse(url).queryParameters['stub-presign'] == 'true') continue;
       final headers = Map<String, String>.from(target['headers'] as Map? ?? {});
-      final response = await _httpClient.put(
-        Uri.parse(url),
-        headers: headers,
-        body: files[index].bytes,
-      );
+      final response = await _httpClient
+          .put(Uri.parse(url), headers: headers, body: files[index].bytes)
+          .timeout(const Duration(seconds: 60));
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw ApiException('사진 업로드에 실패했습니다. (${response.statusCode})');
+        throw ApiException('사진 업로드에 실패했습니다.', statusCode: response.statusCode);
       }
     }
-  }
-
-  Future<Map<String, Object?>> _createPost(
-    UploadDraft draft,
-    List<UploadPhoto> photos,
-    List<Map<String, Object?>> uploadTargets,
-    String token,
-  ) async {
-    final primary = photos.firstWhere(
-      (photo) => photo.id == draft.primaryPhoto.id,
-    );
-    return jsonMap(
-      await _api.post(
-        '/posts',
-        accessToken: token,
-        body: _createPostBody(draft, photos, uploadTargets, primary),
-      ),
-    );
   }
 
   Map<String, Object?> _createPostBody(
@@ -282,9 +307,8 @@ class DeviceUploadRepository implements UploadRepository {
     List<Map<String, Object?>> uploadTargets,
     UploadPhoto primary,
   ) => {
-    'placeId': int.parse(_numericId(draft.place.id, 'plc_')),
-    if (draft.eventId != null)
-      'eventId': int.parse(_numericId(draft.eventId!, 'evt_')),
+    'placeId': _numericId(draft.place.id, 'plc_'),
+    if (draft.eventId != null) 'eventId': _numericId(draft.eventId!, 'evt_'),
     'content': [
       draft.title,
       draft.description,
@@ -306,18 +330,96 @@ class DeviceUploadRepository implements UploadRepository {
     if (primary.longitude != null) 'lng': primary.longitude,
   };
 
+  int _numericId(String id, String prefix) =>
+      int.parse(id.replaceFirst(prefix, ''));
+
   UploadResult _toUploadResult(Map<String, Object?> data) {
-    final post = jsonMap(data['post']);
-    final summary = jsonMap(post['summary']);
-    final badges = jsonMapList(data['earnedBadges']);
+    // CreatePostResponse는 최상위 postId를 반환한다. PROCESSING도 등록 성공이다.
+    final postId = data['postId'];
+    if (postId is! String || postId.trim().isEmpty) {
+      throw const UploadFailure(UploadFailureReason.resultUnknown);
+    }
+    // 선택적인 뱃지 정보의 문제로 이미 완료된 등록을 실패 처리하지 않는다.
+    final badges = data['earnedBadges'];
+    final first = badges is List && badges.isNotEmpty ? badges.first : null;
+    final badge = first is Map ? first : const <String, Object?>{};
     return UploadResult(
-      postId: summary['postId']! as String,
-      badgeTitle: badges.isEmpty ? null : badges.first['name'] as String?,
-      badgeDescription: badges.isEmpty
-          ? null
-          : badges.first['description'] as String?,
+      postId: postId,
+      badgeTitle: badge['name'] is String ? badge['name'] as String : null,
+      badgeDescription: badge['description'] is String
+          ? badge['description'] as String
+          : null,
     );
   }
+
+  UploadFailure _uploadFailure(Object error, _UploadStage stage) {
+    if (stage == _UploadStage.photos) {
+      return const UploadFailure(UploadFailureReason.photoRead);
+    }
+    if (stage == _UploadStage.transfer) {
+      return UploadFailure(switch (error) {
+        TimeoutException() => UploadFailureReason.photoUploadTimeout,
+        ApiException(statusCode: 401 || 403) =>
+          UploadFailureReason.photoUploadRejected,
+        _ => UploadFailureReason.photoUpload,
+      });
+    }
+    if (error is ApiException) {
+      final reason = _apiFailureReason(error);
+      if (reason != null) return UploadFailure(reason);
+    }
+    if (stage == _UploadStage.submission) {
+      return const UploadFailure(UploadFailureReason.resultUnknown);
+    }
+    return UploadFailure(switch (error) {
+      TimeoutException() => UploadFailureReason.preparationTimeout,
+      SocketException() ||
+      http.ClientException() => UploadFailureReason.network,
+      ApiException(statusCode: final status?) when status >= 500 =>
+        UploadFailureReason.serverUnavailable,
+      _ => UploadFailureReason.preparationFailed,
+    });
+  }
+
+  UploadFailureReason? _apiFailureReason(ApiException error) =>
+      switch (error.code) {
+        'AUTH_REQUIRED' ||
+        'AUTH_INVALID_REFRESH' ||
+        'AUTH_REFRESH_EXPIRED' ||
+        'AUTH_TOKEN_REUSED' => UploadFailureReason.loginRequired,
+        'AUTH_TERMS_REQUIRED' => UploadFailureReason.termsRequired,
+        'USER_WITHDRAWN' ||
+        'USER_NOT_FOUND' => UploadFailureReason.accountUnavailable,
+        'MEDIA_COUNT_INVALID' ||
+        'POST_IMAGE_REQUIRED' => UploadFailureReason.photoCount,
+        'MEDIA_TOO_LARGE' => UploadFailureReason.photoTooLarge,
+        'MEDIA_TYPE_UNSUPPORTED' => UploadFailureReason.photoType,
+        'MEDIA_NOT_FOUND' => UploadFailureReason.photoNotFound,
+        'POST_PLACE_REQUIRED' => UploadFailureReason.placeRequired,
+        'PLACE_NOT_FOUND' => UploadFailureReason.placeNotFound,
+        'EVENT_NOT_FOUND' => UploadFailureReason.eventNotFound,
+        'PLACE_INVALID_COORDINATE' ||
+        'PLACE_OUT_OF_SERVICE_AREA' => UploadFailureReason.invalidCoordinates,
+        'POST_INVALID_TAKEN_AT' => UploadFailureReason.invalidTakenAt,
+        'POST_TAG_REQUIRED' => UploadFailureReason.tagInvalid,
+        'POST_DAILY_LIMIT' => UploadFailureReason.dailyLimit,
+        'POST_PLACE_DAILY_LIMIT' => UploadFailureReason.placeDailyLimit,
+        'POST_DUPLICATE_IMAGE' => UploadFailureReason.duplicateImage,
+        'POST_UPLOAD_SUSPENDED' => UploadFailureReason.uploadSuspended,
+        'POST_MEDIA_PROCESSING' => UploadFailureReason.mediaProcessing,
+        'POST_MEDIA_FAILED' => UploadFailureReason.mediaFailed,
+        'COMMON_429' => UploadFailureReason.tooManyRequests,
+        _ => switch (error.statusCode) {
+          401 => UploadFailureReason.loginRequired,
+          403 => UploadFailureReason.permissionDenied,
+          400 || 404 || 422 => UploadFailureReason.invalidInput,
+          409 => UploadFailureReason.conflict,
+          413 => UploadFailureReason.photoTooLarge,
+          415 => UploadFailureReason.photoType,
+          429 => UploadFailureReason.tooManyRequests,
+          _ => null,
+        },
+      };
 
   Future<({List<int> bytes, String mimeType})> _fileInfo(
     UploadPhoto photo,
@@ -329,6 +431,7 @@ class DeviceUploadRepository implements UploadRepository {
     final mimeType = switch (extension) {
       'png' => 'image/png',
       'webp' => 'image/webp',
+      'heic' => 'image/heic',
       _ => 'image/jpeg',
     };
     return (bytes: bytes, mimeType: mimeType);
