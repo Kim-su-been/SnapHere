@@ -2,6 +2,13 @@ import 'package:flutter/foundation.dart';
 
 enum UploadPhotoSource { bundledAsset, deviceLibrary, camera }
 
+// 서버의 태그 정규화(CMU-025)와 같은 기준으로 중복을 판정한다.
+String normalizeUploadTag(String value) => value
+    .trim()
+    .replaceFirst(RegExp(r'^#'), '')
+    .replaceAll(RegExp(r'\s+'), '')
+    .toLowerCase();
+
 @immutable
 class UploadPhoto {
   const UploadPhoto({
@@ -54,6 +61,16 @@ class UploadPlace {
   final String name;
   final String address;
   final int? distanceMeters;
+
+  String get tagName {
+    final cleaned = name
+        .trim()
+        .replaceFirst(RegExp(r'^#'), '')
+        .replaceAll(RegExp(r'\s+'), '');
+    // TagEntity.MAX_NAME_LENGTH / tags.name의 50자 제한을 지킨다.
+    // 유니코드 문자 단위로 잘라 이모지의 서로게이트 쌍을 나누지 않는다.
+    return String.fromCharCodes(cleaned.runes.take(50));
+  }
 }
 
 @immutable
@@ -79,6 +96,20 @@ class UploadDraft {
   final List<String> userTags;
 
   List<String> get photoIds => photos.map((photo) => photo.id).toList();
+
+  List<String> get requestTagNames {
+    final seen = <String>{
+      if (eventId != null) ...fixedTags.map(normalizeUploadTag),
+    };
+    return [
+      // 일반 자동 태그는 현재 서버가 직접 추가하지 않으므로 요청에 보장한다.
+      // 행사 고정 태그는 서버가 추가하므로 자유 태그만 보낸다.
+      for (final tag in [if (eventId == null) place.tagName, ...userTags])
+        if (normalizeUploadTag(tag).isNotEmpty &&
+            seen.add(normalizeUploadTag(tag)))
+          tag,
+    ];
+  }
 }
 
 @immutable

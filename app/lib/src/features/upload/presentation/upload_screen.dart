@@ -67,8 +67,24 @@ Future<bool> _confirmUploadCancel(BuildContext context) async {
   return shouldCancel ?? false;
 }
 
-class UploadScreen extends ConsumerWidget {
+class UploadScreen extends StatelessWidget {
   const UploadScreen({this.eventId, super.key});
+
+  final String? eventId;
+
+  @override
+  Widget build(BuildContext context) => ProviderScope(
+    // 화면 안의 단계 이동은 같은 상태를 쓰고, 새 라우트 진입은 새 작성 상태를 쓴다.
+    overrides: [uploadControllerProvider.overrideWith(UploadController.new)],
+    child: _UploadScreenContent(
+      key: const Key('upload-flow'),
+      eventId: eventId,
+    ),
+  );
+}
+
+class _UploadScreenContent extends ConsumerWidget {
+  const _UploadScreenContent({this.eventId, super.key});
 
   final String? eventId;
 
@@ -167,6 +183,7 @@ class UploadScreen extends ConsumerWidget {
     EventUploadContext resolvedEvent,
   ) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!ref.context.mounted) return;
       ref
           .read(uploadControllerProvider.notifier)
           .applyEventContext(
@@ -496,7 +513,20 @@ class _FormStep extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(uploadControllerProvider.notifier);
     final titleInvalid = state.showValidation && state.title.trim().isEmpty;
-    final placeInvalid = state.showValidation && state.selectedPlace == null;
+    final placeInvalid =
+        state.showValidation &&
+        (state.selectedPlace == null ||
+            (state.eventContext == null &&
+                state.selectedPlace!.tagName.isEmpty));
+    final selectedPlace = state.selectedPlace;
+    final places = [
+      ?selectedPlace,
+      for (final place in state.placeMatches)
+        if (place.id != selectedPlace?.id) place,
+    ];
+    final hasAutomaticMatch =
+        selectedPlace != null &&
+        state.placeMatches.any((place) => place.id == selectedPlace.id);
 
     Future<void> openPlaceSearch() async {
       final place = await Navigator.of(context).push<UploadPlace>(
@@ -561,12 +591,12 @@ class _FormStep extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   _FieldLabel(
-                    state.placeMatches.isEmpty ? '장소' : '장소 · GPS 자동 매칭',
-                    isRequired: state.placeMatches.isEmpty,
+                    hasAutomaticMatch ? '장소 · GPS 자동 매칭' : '장소',
+                    isRequired: places.isEmpty,
                   ),
-                  if (state.placeMatches.isNotEmpty)
+                  if (selectedPlace != null)
                     Text(
-                      '자동 매칭 완료',
+                      hasAutomaticMatch ? '자동 매칭 완료' : '선택 완료',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.brand,
                         fontWeight: FontWeight.w700,
@@ -595,7 +625,7 @@ class _FormStep extends ConsumerWidget {
                     ],
                   ),
                 ),
-              ] else if (state.placeMatches.isEmpty) ...[
+              ] else if (places.isEmpty) ...[
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.lg),
                   decoration: BoxDecoration(
@@ -622,7 +652,7 @@ class _FormStep extends ConsumerWidget {
                   ),
                 ),
               ] else ...[
-                for (final place in state.placeMatches) ...[
+                for (final place in places) ...[
                   _PlaceOption(
                     place,
                     selected: place.id == state.selectedPlace?.id,
@@ -663,15 +693,18 @@ class _FormStep extends ConsumerWidget {
                   contentPadding: EdgeInsets.all(14),
                 ),
               ),
-              if (state.eventContext case final eventContext?) ...[
-                const SizedBox(height: AppSpacing.lg),
-                const _FieldLabel('이벤트 태그'),
-                const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: AppSpacing.lg),
+              _FieldLabel(
+                state.eventContext == null ? '태그 (추가 입력은 선택)' : '이벤트 태그',
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              if (state.userTags.isNotEmpty ||
+                  state.automaticTags.isNotEmpty) ...[
                 Wrap(
                   spacing: AppSpacing.sm,
                   runSpacing: AppSpacing.sm,
                   children: [
-                    for (final tag in eventContext.fixedTags)
+                    for (final tag in state.automaticTags)
                       Chip(
                         avatar: const Icon(Icons.lock_outline, size: 14),
                         label: Text('#$tag'),
@@ -684,24 +717,24 @@ class _FormStep extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                TextField(
-                  enabled: state.userTags.length < UploadLimits.userTagCount,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: controller.addUserTag,
-                  decoration: InputDecoration(
-                    hintText: state.userTags.length < UploadLimits.userTagCount
-                        ? '태그 입력 후 완료 (${state.userTags.length}/${UploadLimits.userTagCount})'
-                        : '자유 태그를 모두 입력했어요',
-                    prefixText: '# ',
-                    constraints: const BoxConstraints(minHeight: 46),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  '잠긴 태그 2개는 행사 참여 확인을 위해 변경할 수 없어요.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
               ],
+              _UploadTagInput(
+                key: const Key('upload-tag-editor'),
+                enabled: state.userTags.length < state.userTagLimit,
+                hintText: state.userTags.length < state.userTagLimit
+                    ? '태그 입력 (${state.userTags.length}/${state.userTagLimit})'
+                    : '태그를 모두 입력했어요',
+                onAdd: controller.addUserTag,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                state.eventContext != null
+                    ? '행사 태그는 자동으로 붙어요. 추가 태그는 선택이에요.'
+                    : state.automaticTags.isEmpty
+                    ? '장소를 선택하면 장소 태그가 자동으로 붙어요.'
+                    : '장소 태그는 자동으로 붙어요. 추가 태그는 선택이에요.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
               if (state.submitMessage case final message?) ...[
                 const SizedBox(height: AppSpacing.lg),
                 Semantics(
@@ -719,6 +752,64 @@ class _FormStep extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _UploadTagInput extends StatefulWidget {
+  const _UploadTagInput({
+    super.key,
+    required this.enabled,
+    required this.hintText,
+    required this.onAdd,
+  });
+
+  final bool enabled;
+  final String hintText;
+  final ValueChanged<String> onAdd;
+
+  @override
+  State<_UploadTagInput> createState() => _UploadTagInputState();
+}
+
+class _UploadTagInputState extends State<_UploadTagInput> {
+  final _controller = TextEditingController();
+
+  void _add() {
+    if (!widget.enabled || _controller.text.trim().isEmpty) return;
+    widget.onAdd(_controller.text);
+    _controller.clear();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: TextField(
+          key: const Key('upload-tag-input'),
+          controller: _controller,
+          enabled: widget.enabled,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => _add(),
+          decoration: InputDecoration(
+            hintText: widget.hintText,
+            prefixText: '# ',
+            constraints: const BoxConstraints(minHeight: 46),
+          ),
+        ),
+      ),
+      const SizedBox(width: AppSpacing.sm),
+      TextButton(
+        key: const Key('upload-tag-add'),
+        onPressed: widget.enabled ? _add : null,
+        child: const Text('추가'),
+      ),
+    ],
+  );
 }
 
 class _EventUploadBanner extends StatelessWidget {

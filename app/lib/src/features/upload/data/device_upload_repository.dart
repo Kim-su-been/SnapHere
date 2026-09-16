@@ -211,6 +211,13 @@ class DeviceUploadRepository implements UploadRepository {
     var stage = _UploadStage.photos;
     try {
       final token = _requireAccessToken();
+      final placeId = _numericId(draft.place.id, 'plc_');
+      final eventId = draft.eventId == null
+          ? null
+          : _numericId(draft.eventId!, 'evt_');
+      if (eventId == null && draft.place.tagName.isEmpty) {
+        throw const UploadFailure(UploadFailureReason.placeNotFound);
+      }
       final photos = await Future.wait(draft.photos.map(_resolveOriginal));
       final files = await Future.wait(photos.map(_fileInfo));
       stage = _UploadStage.preparation;
@@ -219,7 +226,14 @@ class DeviceUploadRepository implements UploadRepository {
       final primary = photos.firstWhere(
         (photo) => photo.id == draft.primaryPhoto.id,
       );
-      final body = _createPostBody(draft, photos, uploadTargets, primary);
+      final body = _createPostBody(
+        draft,
+        photos,
+        uploadTargets,
+        primary,
+        placeId: placeId,
+        eventId: eventId,
+      );
       stage = _UploadStage.transfer;
       await _uploadFiles(uploadTargets, files);
       // 이 시점 이후 통신 오류는 서버 저장 여부를 확정할 수 없다.
@@ -305,10 +319,12 @@ class DeviceUploadRepository implements UploadRepository {
     UploadDraft draft,
     List<UploadPhoto> photos,
     List<Map<String, Object?>> uploadTargets,
-    UploadPhoto primary,
-  ) => {
-    'placeId': _numericId(draft.place.id, 'plc_'),
-    if (draft.eventId != null) 'eventId': _numericId(draft.eventId!, 'evt_'),
+    UploadPhoto primary, {
+    required int placeId,
+    int? eventId,
+  }) => {
+    'placeId': placeId,
+    'eventId': ?eventId,
     'content': [
       draft.title,
       draft.description,
@@ -322,7 +338,7 @@ class DeviceUploadRepository implements UploadRepository {
           'aspectRatio': photos[index].aspectRatio,
         },
     ],
-    'tagNames': [...draft.fixedTags, ...draft.userTags],
+    'tagNames': draft.requestTagNames,
     'source': primary.source == UploadPhotoSource.camera ? 'CAMERA' : 'ALBUM',
     if (primary.source == UploadPhotoSource.camera)
       'takenAt': DateTime.now().toUtc().toIso8601String(),
@@ -330,8 +346,20 @@ class DeviceUploadRepository implements UploadRepository {
     if (primary.longitude != null) 'lng': primary.longitude,
   };
 
-  int _numericId(String id, String prefix) =>
-      int.parse(id.replaceFirst(prefix, ''));
+  int _numericId(String id, String prefix) {
+    final raw = id.startsWith(prefix) ? id.substring(prefix.length) : null;
+    final value = raw != null && RegExp(r'^[0-9a-z]+$').hasMatch(raw)
+        ? int.tryParse(raw, radix: 36)
+        : null;
+    if (value == null || value <= 0) {
+      throw UploadFailure(
+        prefix == 'evt_'
+            ? UploadFailureReason.eventNotFound
+            : UploadFailureReason.placeNotFound,
+      );
+    }
+    return value;
+  }
 
   UploadResult _toUploadResult(Map<String, Object?> data) {
     // CreatePostResponse는 최상위 postId를 반환한다. PROCESSING도 등록 성공이다.

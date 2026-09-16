@@ -25,6 +25,7 @@ enum UploadGalleryTab { recent, drafts }
 
 abstract final class UploadLimits {
   static const photoCount = 4;
+  static const tagCount = 10;
   static const userTagCount = 8;
 }
 
@@ -69,6 +70,19 @@ class UploadState {
   final UploadResult? result;
   final UploadEventContext? eventContext;
   final List<String> userTags;
+
+  List<String> get automaticTags =>
+      eventContext?.fixedTags ??
+      [
+        if (selectedPlace case final place? when place.tagName.isNotEmpty)
+          place.tagName,
+      ];
+
+  int get userTagLimit =>
+      (UploadLimits.tagCount - (eventContext?.fixedTags.length ?? 1)).clamp(
+        0,
+        UploadLimits.tagCount,
+      );
 
   List<UploadPhoto> get photos => [...recentPhotos, ...draftPhotos];
 
@@ -141,6 +155,8 @@ final uploadControllerProvider =
     AsyncNotifierProvider<UploadController, UploadState>(UploadController.new);
 
 class UploadController extends AsyncNotifier<UploadState> {
+  int _locationMatchGeneration = 0;
+
   UploadRepository get _repository => ref.read(uploadRepositoryProvider);
 
   Future<void> openMediaSettings() => _repository.openMediaSettings();
@@ -244,9 +260,10 @@ class UploadController extends AsyncNotifier<UploadState> {
   }
 
   Future<void> _matchPlace(UploadPhoto primary) async {
+    final generation = ++_locationMatchGeneration;
     try {
       final places = await _repository.matchPlaces(primary);
-      if (!ref.mounted) return;
+      if (!ref.mounted || generation != _locationMatchGeneration) return;
       _setData(
         state.requireValue.copyWith(
           placeMatches: places,
@@ -254,10 +271,11 @@ class UploadController extends AsyncNotifier<UploadState> {
           clearSelectedPlace: places.isEmpty,
           isMatchingLocation: false,
           locationMessage: places.isEmpty ? '주변 장소를 찾지 못했어요.' : null,
+          clearLocationMessage: places.isNotEmpty,
         ),
       );
     } catch (error) {
-      if (!ref.mounted) return;
+      if (!ref.mounted || generation != _locationMatchGeneration) return;
       _setData(
         state.requireValue.copyWith(
           placeMatches: const [],
@@ -281,15 +299,22 @@ class UploadController extends AsyncNotifier<UploadState> {
 
   void selectPlace(UploadPlace place) {
     final current = state.requireValue;
-    state = AsyncData(
-      current.copyWith(selectedPlace: place, showValidation: false),
+    _locationMatchGeneration++;
+    _setData(
+      current.copyWith(
+        selectedPlace: place,
+        showValidation: false,
+        isMatchingLocation: false,
+        clearLocationMessage: true,
+      ),
     );
   }
 
   void applyEventContext(UploadEventContext context) {
     final current = state.requireValue;
     if (current.eventContext?.eventId == context.eventId) return;
-    state = AsyncData(
+    _locationMatchGeneration++;
+    _setData(
       current.copyWith(
         eventContext: context,
         placeMatches: [context.place],
@@ -361,13 +386,17 @@ class UploadController extends AsyncNotifier<UploadState> {
       current.selectedPhotoIds.length >= UploadLimits.photoCount;
 
   bool _canAddUserTag(UploadState current, String tag) =>
-      tag.isNotEmpty &&
-      current.userTags.length < UploadLimits.userTagCount &&
-      !current.userTags.contains(tag) &&
-      current.eventContext?.fixedTags.contains(tag) != true;
+      normalizeUploadTag(tag).isNotEmpty &&
+      current.userTags.length < current.userTagLimit &&
+      ![...current.userTags, ...current.automaticTags].any(
+        (existing) => normalizeUploadTag(existing) == normalizeUploadTag(tag),
+      );
 
   bool _hasValidForm(UploadState current) =>
-      current.title.trim().isNotEmpty && current.selectedPlace != null;
+      current.title.trim().isNotEmpty &&
+      current.selectedPlace != null &&
+      (current.eventContext != null ||
+          current.selectedPlace!.tagName.isNotEmpty);
 
   UploadDraft _createDraft(UploadState current, UploadPhoto primary) =>
       UploadDraft(
@@ -377,9 +406,20 @@ class UploadController extends AsyncNotifier<UploadState> {
         description: current.description.trim(),
         place: current.selectedPlace!,
         eventId: current.eventContext?.eventId,
-        fixedTags: current.eventContext?.fixedTags ?? const [],
+        fixedTags: current.automaticTags,
         userTags: current.userTags,
       );
 
-  void _setData(UploadState value) => state = AsyncData(value);
+  void _setData(UploadState value) {
+    final seen = value.automaticTags.map(normalizeUploadTag).toSet();
+    final userTags = value.userTags
+        .where(
+          (tag) =>
+              normalizeUploadTag(tag).isNotEmpty &&
+              seen.add(normalizeUploadTag(tag)),
+        )
+        .take(value.userTagLimit)
+        .toList();
+    state = AsyncData(value.copyWith(userTags: userTags));
+  }
 }
