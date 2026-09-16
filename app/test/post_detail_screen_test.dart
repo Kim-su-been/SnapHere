@@ -27,14 +27,20 @@ class _ReadyAuth extends AuthController {
 }
 
 class _StubPostRepository implements PostRepository {
-  _StubPostRepository({this.failLike = false});
+  _StubPostRepository({this.failLike = false, this.fetchFailure});
 
   final bool failLike;
+  PostFailure? fetchFailure;
+  int fetchCount = 0;
   bool? lastLiked;
   bool? lastBookmarked;
 
   @override
-  Future<PostDetail> fetchPost(String postId) async => detail;
+  Future<PostDetail> fetchPost(String postId) async {
+    fetchCount++;
+    if (fetchFailure case final error?) throw error;
+    return detail;
+  }
 
   @override
   Future<({int likeCount, bool isLiked})> setLiked(
@@ -112,13 +118,21 @@ void main() {
   Future<_StubPostRepository> mount(
     WidgetTester tester, {
     bool failLike = false,
+    PostFailure? fetchFailure,
   }) async {
     await tester.binding.setSurfaceSize(const Size(412, 893));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    final repository = _StubPostRepository(failLike: failLike);
+    final repository = _StubPostRepository(
+      failLike: failLike,
+      fetchFailure: fetchFailure,
+    );
     final router = GoRouter(
       routes: [
+        GoRoute(
+          path: '/community',
+          builder: (_, _) => const Scaffold(body: Text('community-screen')),
+        ),
         GoRoute(
           path: '/',
           builder: (_, _) => const PostDetailScreen(postId: 'pst_1'),
@@ -207,5 +221,51 @@ void main() {
     await tester.tap(find.text('전주 한옥마을'));
     await tester.pumpAndSettle();
     expect(find.text('place-screen'), findsOneWidget);
+  });
+
+  testWidgets('없는 게시글은 즉시 안내하고 40초 뒤에도 자동 재시도하지 않는다', (tester) async {
+    final repository = await mount(
+      tester,
+      fetchFailure: const PostFailure(
+        '게시글을 찾을 수 없어요.',
+        code: 'POST_NOT_FOUND',
+        statusCode: 404,
+      ),
+    );
+    expect(find.text('게시글을 찾을 수 없어요.'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    await tester.pump(const Duration(seconds: 40));
+    expect(repository.fetchCount, 1);
+    await tester.tap(find.text('목록으로 돌아가기'));
+    await tester.pumpAndSettle();
+    expect(find.text('community-screen'), findsOneWidget);
+  });
+
+  testWidgets('일시 실패는 로딩을 끝내고 사용자가 재시도하면 상세를 연다', (tester) async {
+    final repository = await mount(
+      tester,
+      fetchFailure: const PostFailure('서버가 요청을 처리하지 못했어요.'),
+    );
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('서버가 요청을 처리하지 못했어요.'), findsOneWidget);
+    repository.fetchFailure = null;
+    await tester.tap(find.text('다시 시도'));
+    await tester.pumpAndSettle();
+    expect(repository.fetchCount, 2);
+    expect(find.text('전주 한옥마을의 봄'), findsOneWidget);
+  });
+
+  testWidgets('사진 처리 중에는 오류 원인과 다시 확인할 수 있는 동작을 표시한다', (tester) async {
+    await mount(
+      tester,
+      fetchFailure: const PostFailure(
+        '사진을 처리하고 있어요. 잠시 후 다시 확인해 주세요.',
+        code: 'POST_MEDIA_PROCESSING',
+        statusCode: 409,
+      ),
+    );
+    expect(find.textContaining('사진을 처리하고 있어요'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('다시 시도'), findsOneWidget);
   });
 }

@@ -2,6 +2,7 @@ import 'package:snap_here/src/core/network/api_client.dart';
 import 'package:snap_here/src/features/community/data/post_page_reader.dart';
 import 'package:snap_here/src/features/community/domain/community_models.dart';
 import 'package:snap_here/src/features/community/domain/community_repository.dart';
+import 'package:snap_here/src/features/post/domain/post_id.dart';
 
 class ApiCommunityRepository implements CommunityRepository {
   ApiCommunityRepository({ApiClient? api, this.accessToken})
@@ -35,7 +36,7 @@ class ApiCommunityRepository implements CommunityRepository {
   }
 
   Future<CommunityPost> _hydrate(Map<String, Object?> summary) async {
-    final postId = summary['postId']! as String;
+    final postId = postApiId(summary['postId']! as String);
     try {
       final detail = jsonMap(
         await _api.get('/posts/$postId', accessToken: accessToken),

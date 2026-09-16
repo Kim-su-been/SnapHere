@@ -1,6 +1,7 @@
 import 'package:snap_here/src/core/network/api_client.dart';
 import 'package:snap_here/src/core/network/cursor_page.dart';
 import 'package:snap_here/src/features/community/domain/community_models.dart';
+import 'package:snap_here/src/features/post/domain/post_id.dart';
 
 /// 여러 화면에서 사용하는 게시글 목록. 본문 보충 조회는 동시 4개로 제한한다.
 class PostPageReader {
@@ -39,7 +40,10 @@ class PostPageReader {
     String content = '';
     try {
       final detail = jsonMap(
-        await api.get('/posts/${summary['postId']}', accessToken: accessToken),
+        await api.get(
+          '/posts/${postApiId(summary['postId']! as String)}',
+          accessToken: accessToken,
+        ),
       );
       content = (detail['content'] as String? ?? '').trim();
     } on ApiException {

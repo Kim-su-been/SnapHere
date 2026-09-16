@@ -1,5 +1,6 @@
 package com.snaphere.api.reaction;
 
+import com.snaphere.api.auth.ExternalIds;
 import com.snaphere.api.common.security.CurrentUser;
 import com.snaphere.api.common.security.CurrentUserProvider;
 import com.snaphere.api.common.web.ApiResponse;
@@ -41,10 +42,10 @@ public class PostReactionController {
 
     @PutMapping("/like")
     public ResponseEntity<ApiResponse<LikeResultResponse>> like(
-            @PathVariable long postId, HttpServletRequest httpRequest) {
+            @PathVariable String postId, HttpServletRequest httpRequest) {
 
         CurrentUser user = currentUserProvider.require(httpRequest);
-        LikeResultResponse result = postLikeService.like(postId, user.userId());
+        LikeResultResponse result = postLikeService.like(ExternalIds.parsePost(postId), user.userId());
 
         return ResponseEntity.ok(ApiResponse.ok(result,
                 TraceIdFilter.currentTraceId(httpRequest)));
@@ -52,10 +53,10 @@ public class PostReactionController {
 
     @DeleteMapping("/like")
     public ResponseEntity<ApiResponse<LikeResultResponse>> unlike(
-            @PathVariable long postId, HttpServletRequest httpRequest) {
+            @PathVariable String postId, HttpServletRequest httpRequest) {
 
         CurrentUser user = currentUserProvider.require(httpRequest);
-        LikeResultResponse result = postLikeService.unlike(postId, user.userId());
+        LikeResultResponse result = postLikeService.unlike(ExternalIds.parsePost(postId), user.userId());
 
         return ResponseEntity.ok(ApiResponse.ok(result,
                 TraceIdFilter.currentTraceId(httpRequest)));
@@ -63,10 +64,10 @@ public class PostReactionController {
 
     @PutMapping("/bookmark")
     public ResponseEntity<ApiResponse<BookmarkResultResponse>> bookmark(
-            @PathVariable long postId, HttpServletRequest httpRequest) {
+            @PathVariable String postId, HttpServletRequest httpRequest) {
 
         CurrentUser user = currentUserProvider.require(httpRequest);
-        BookmarkResultResponse result = postBookmarkService.bookmark(postId, user.userId());
+        BookmarkResultResponse result = postBookmarkService.bookmark(ExternalIds.parsePost(postId), user.userId());
 
         return ResponseEntity.ok(ApiResponse.ok(result,
                 TraceIdFilter.currentTraceId(httpRequest)));
@@ -74,10 +75,10 @@ public class PostReactionController {
 
     @DeleteMapping("/bookmark")
     public ResponseEntity<ApiResponse<BookmarkResultResponse>> removeBookmark(
-            @PathVariable long postId, HttpServletRequest httpRequest) {
+            @PathVariable String postId, HttpServletRequest httpRequest) {
 
         CurrentUser user = currentUserProvider.require(httpRequest);
-        BookmarkResultResponse result = postBookmarkService.removeBookmark(postId, user.userId());
+        BookmarkResultResponse result = postBookmarkService.removeBookmark(ExternalIds.parsePost(postId), user.userId());
 
         return ResponseEntity.ok(ApiResponse.ok(result,
                 TraceIdFilter.currentTraceId(httpRequest)));
