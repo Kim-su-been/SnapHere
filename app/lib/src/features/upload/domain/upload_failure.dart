@@ -79,7 +79,7 @@ class UploadFailure implements Exception {
     UploadFailureReason.invalidTakenAt =>
       '사진의 촬영 시간을 확인할 수 없어요. 기기 날짜·시간을 확인하거나 다른 사진을 선택해 주세요.',
     UploadFailureReason.tagInvalid =>
-      '태그가 없거나 허용 개수를 넘었어요. 태그를 1~10개로 확인해 주세요. 행사 고정 태그도 포함돼요.',
+      '태그 정보를 확인하지 못했어요. 장소를 다시 선택하고, 자동 태그를 포함해 태그가 10개 이내인지 확인해 주세요.',
     UploadFailureReason.dailyLimit =>
       '오늘 등록할 수 있는 게시글 수를 모두 사용했어요. 내일 다시 등록해 주세요.',
     UploadFailureReason.placeDailyLimit =>

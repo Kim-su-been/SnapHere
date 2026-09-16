@@ -74,6 +74,7 @@ void main() {
       place: const UploadPlace(id: 'plc_1', name: '사천에어쇼', address: '사천시'),
       eventId: 'evt_2',
       fixedTags: const ['사천', '에어쇼'],
+      userTags: const ['비행'],
     );
     requests = [];
   });
@@ -131,6 +132,9 @@ void main() {
     await controller.showForm();
     controller.updateTitle(draft.title);
     controller.updateDescription(draft.description);
+    for (final tag in draft.userTags) {
+      controller.addUserTag(tag);
+    }
     await controller.submit();
 
     final state = container.read(uploadControllerProvider).requireValue;
@@ -147,10 +151,210 @@ void main() {
     expect(body['placeId'], 1);
     expect(body['eventId'], 2);
     expect(body['content'], '사천 에어쇼\n사진 설명');
-    expect(body['tagNames'], ['사천', '에어쇼']);
+    expect(body['tagNames'], ['비행']);
 
     await controller.submit();
     expect(requests, hasLength(3));
+  });
+
+  test('행사 고정 2개는 서버에 맡기고 자유 태그 8개만 요청에 담는다', () async {
+    final tags = List.generate(8, (index) => '자유태그$index');
+    await repository().createPost(
+      UploadDraft(
+        photos: draft.photos,
+        primaryPhoto: draft.primaryPhoto,
+        title: draft.title,
+        description: draft.description,
+        place: draft.place,
+        eventId: draft.eventId,
+        fixedTags: draft.fixedTags,
+        userTags: tags,
+      ),
+    );
+    final body = jsonDecode(requests.last.body) as Map;
+    expect(body['tagNames'], tags);
+    expect(body['tagNames'], hasLength(8));
+    expect(body['tagNames'], isNot(contains('사천')));
+    expect(body['tagNames'], isNot(contains('에어쇼')));
+  });
+
+  test('일반 게시글은 수동 태그 없이 실제 요청에 자동 장소 태그를 포함한다', () async {
+    final container = ProviderContainer(
+      overrides: [uploadRepositoryProvider.overrideWithValue(repository())],
+    );
+    addTearDown(container.dispose);
+    await container.read(uploadControllerProvider.future);
+    final controller = container.read(uploadControllerProvider.notifier);
+    controller.selectPlace(
+      const UploadPlace(id: 'plc_2zq', name: '은구비 공원', address: ''),
+    );
+    controller.updateTitle('공원 사진');
+    await controller.submit();
+    final state = container.read(uploadControllerProvider).requireValue;
+    expect(state.step, UploadStep.complete);
+    expect(state.userTags, isEmpty);
+    final body = jsonDecode(requests.last.body) as Map;
+    expect(body['placeId'], 3878);
+    expect(body['tagNames'], ['은구비공원']);
+    expect(body.containsKey('eventId'), isFalse);
+  });
+
+  test('작성 상태를 거치지 않는 일반 요청도 장소 태그를 보장하고 정규화 중복을 지운다', () async {
+    final tags = ['#사천 에어쇼', ...List.generate(9, (index) => '추가$index'), '추가0'];
+    await repository().createPost(
+      UploadDraft(
+        photos: draft.photos,
+        primaryPhoto: draft.primaryPhoto,
+        title: draft.title,
+        description: draft.description,
+        place: draft.place,
+        userTags: tags,
+      ),
+    );
+    final body = jsonDecode(requests.last.body) as Map;
+    expect(body['tagNames'], [
+      '사천에어쇼',
+      ...List.generate(9, (index) => '추가$index'),
+    ]);
+    expect(body['tagNames'], hasLength(10));
+  });
+
+  test('긴 장소 이름은 서버의 50자 태그 제한에 맞추고 이모지를 나누지 않는다', () async {
+    final name =
+        '${List.filled(49, '가').join()}📷${List.filled(15, '나').join()}';
+    final place = UploadPlace(id: 'plc_1', name: name, address: '');
+    await repository().createPost(
+      UploadDraft(
+        photos: draft.photos,
+        primaryPhoto: draft.primaryPhoto,
+        title: draft.title,
+        description: draft.description,
+        place: place,
+      ),
+    );
+    final body = jsonDecode(requests.last.body) as Map;
+    final tag = (body['tagNames'] as List).single as String;
+    expect(tag, '${List.filled(49, '가').join()}📷');
+    expect(tag.runes, hasLength(50));
+    expect(tag, place.tagName);
+    expect(normalizeUploadTag(tag).runes, hasLength(50));
+  });
+
+  test('행사도 추가 입력 없이 자유 태그 빈 배열로 게시를 완료한다', () async {
+    final result = await repository().createPost(
+      UploadDraft(
+        photos: draft.photos,
+        primaryPhoto: draft.primaryPhoto,
+        title: draft.title,
+        description: draft.description,
+        place: draft.place,
+        eventId: draft.eventId,
+        fixedTags: draft.fixedTags,
+      ),
+    );
+    expect(result.postId, 'pst_42');
+    final body = jsonDecode(requests.last.body) as Map;
+    expect(body['tagNames'], isEmpty);
+    expect(body['eventId'], 2);
+  });
+
+  test('장소 이름이 비어 자동 태그를 만들 수 없으면 사진 준비 전에 장소 재선택을 안내한다', () async {
+    await expectLater(
+      repository().createPost(
+        UploadDraft(
+          photos: draft.photos,
+          primaryPhoto: draft.primaryPhoto,
+          title: draft.title,
+          description: draft.description,
+          place: const UploadPlace(id: 'plc_1', name: '   ', address: ''),
+        ),
+      ),
+      _failure(UploadFailureReason.placeNotFound),
+    );
+    expect(requests, isEmpty);
+  });
+
+  test('문자 포함·숫자 전용 외부 장소와 행사 ID를 36진수로 게시한다', () async {
+    for (final ids in [
+      (place: 'plc_2zq', placeNumber: 3878, event: 'evt_a', eventNumber: 10),
+      (place: 'plc_10', placeNumber: 36, event: 'evt_10', eventNumber: 36),
+    ]) {
+      requests.clear();
+      final result = await repository().createPost(
+        UploadDraft(
+          photos: draft.photos,
+          primaryPhoto: draft.primaryPhoto,
+          title: draft.title,
+          description: draft.description,
+          place: UploadPlace(id: ids.place, name: '은구비공원', address: ''),
+          eventId: ids.event,
+        ),
+      );
+      expect(result.postId, 'pst_42');
+      expect(requests.map((r) => r.method), ['POST', 'PUT', 'POST']);
+      final body = jsonDecode(requests.last.body) as Map;
+      expect(body['placeId'], ids.placeNumber);
+      expect(body['eventId'], ids.eventNumber);
+    }
+  });
+
+  test('태그 추천과 등급 미리보기도 같은 장소·행사 번호를 사용한다', () async {
+    final repo = repository(
+      respond: (request) => request.url.path == '/api/v1/tags/suggestions'
+          ? _data([
+              {'name': '공원'},
+            ])
+          : request.url.path == '/api/v1/posts/tier-preview'
+          ? _data({'tier': 'LOW'})
+          : null,
+    );
+    expect(await repo.suggestTags(placeId: 'plc_2zq', eventId: 'evt_10'), [
+      '공원',
+    ]);
+    expect(requests.single.url.queryParameters['placeId'], '3878');
+    expect(requests.single.url.queryParameters['eventId'], '36');
+    expect(
+      (await repo.previewTier(
+        placeId: 'plc_2zq',
+        eventId: 'evt_10',
+        fromCamera: false,
+      ))?.tier,
+      'LOW',
+    );
+    final body = jsonDecode(requests.last.body) as Map;
+    expect(body['placeId'], 3878);
+    expect(body['eventId'], 36);
+  });
+
+  test('잘못된 장소·행사 ID는 사진 준비 요청 전에 구체적으로 안내한다', () async {
+    for (final place in ['plc_', 'evt_1', 'plc_-1', 'plc_0', 'plc_2 zq']) {
+      await expectLater(
+        repository().createPost(
+          UploadDraft(
+            photos: draft.photos,
+            primaryPhoto: draft.primaryPhoto,
+            title: draft.title,
+            description: draft.description,
+            place: UploadPlace(id: place, name: '공원', address: ''),
+          ),
+        ),
+        _failure(UploadFailureReason.placeNotFound),
+      );
+    }
+    await expectLater(
+      repository().createPost(
+        UploadDraft(
+          photos: draft.photos,
+          primaryPhoto: draft.primaryPhoto,
+          title: draft.title,
+          description: draft.description,
+          place: draft.place,
+          eventId: 'plc_1',
+        ),
+      ),
+      _failure(UploadFailureReason.eventNotFound),
+    );
+    expect(requests, isEmpty);
   });
 
   test('게시글 번호를 받았다면 뱃지가 없거나 손상돼도 성공을 유지한다', () async {
