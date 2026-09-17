@@ -107,7 +107,8 @@ void main() {
 
     expect(find.text('지도에서 관광지를 탐색하세요'), findsOneWidget);
 
-    await tester.tap(find.text('시작하기'));
+    expect(find.text('이미 계정이 있으신가요? '), findsNothing);
+    await tester.tap(find.text('로그인 또는 둘러보기'));
     await tester.pumpAndSettle();
     expect(find.text('Google로 계속하기'), findsOneWidget);
 
