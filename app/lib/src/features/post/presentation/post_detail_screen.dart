@@ -199,7 +199,12 @@ class _TagRow extends StatelessWidget {
     children: [
       for (final tag in tags)
         GestureDetector(
-          onTap: () => context.push('/community/search?tag=${tag.name}'),
+          onTap: () => context.push(
+            Uri(
+              pathSegments: ['', 'tags', tag.tagId],
+              queryParameters: {'name': tag.name},
+            ).toString(),
+          ),
           child: Container(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.md,
