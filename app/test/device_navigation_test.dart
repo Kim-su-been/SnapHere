@@ -26,6 +26,9 @@ import 'package:snap_here/src/features/explore/application/explore_providers.dar
 import 'package:snap_here/src/features/home/presentation/home_screen.dart';
 import 'package:snap_here/src/features/map/application/map_configuration.dart';
 import 'package:snap_here/src/features/notification/presentation/notification_screen.dart';
+import 'package:snap_here/src/features/notification/application/notification_providers.dart';
+import 'package:snap_here/src/features/notification/data/empty_notification_repository.dart';
+import 'package:snap_here/src/features/notification/domain/notification_models.dart';
 import 'package:snap_here/src/features/profile/application/profile_providers.dart';
 import 'package:snap_here/src/features/profile/data/api_profile_repository.dart';
 import 'package:snap_here/src/features/profile/domain/profile_models.dart';
@@ -98,6 +101,44 @@ class _ReadySettings extends UserSettingsController {
   );
 }
 
+class _NavigationNotifications extends EmptyNotificationRepository {
+  const _NavigationNotifications();
+
+  @override
+  Future<CursorPage<AppNotification>> fetchNotifications({
+    String? cursor,
+  }) async => const CursorPage(
+    items: [
+      AppNotification(
+        notificationId: 'test-follow',
+        type: NotificationType.follow,
+        target: NotificationTarget.user,
+        targetId: 'u2',
+        messageKey: 'notification.follow',
+        messageParams: {'actorNickname': '제주사진가'},
+        isRead: true,
+      ),
+      AppNotification(
+        notificationId: 'test-badge',
+        type: NotificationType.badgeEarned,
+        target: NotificationTarget.badge,
+        messageKey: 'notification.badge.earned',
+        messageParams: {'badgeName': '테스트 행사'},
+        isRead: true,
+      ),
+      AppNotification(
+        notificationId: 'test-post',
+        type: NotificationType.postLike,
+        target: NotificationTarget.post,
+        targetId: 'pst_1',
+        messageKey: 'notification.post.like',
+        messageParams: {'actorNickname': '테스트 작성자'},
+        isRead: true,
+      ),
+    ],
+  );
+}
+
 class _Profiles extends ApiProfileRepository {
   ProfileSnapshot profile(String id) => ProfileSnapshot(
     userId: id,
@@ -127,6 +168,7 @@ void main() {
     bool withTagFixture = false,
     bool withSearchUserFixture = false,
     _LogoutActivity? logoutActivity,
+    bool withNotificationFixture = false,
   }) async {
     await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -137,6 +179,10 @@ void main() {
         mapRegionsProvider.overrideWith((_) async => const []),
         profileRepositoryProvider.overrideWithValue(_Profiles()),
         userSettingsProvider.overrideWith(_ReadySettings.new),
+        if (withNotificationFixture)
+          notificationRepositoryProvider.overrideWithValue(
+            const _NavigationNotifications(),
+          ),
         if (logoutActivity != null)
           activityRepositoryProvider.overrideWithValue(logoutActivity),
         if (withTagFixture) ...[
@@ -331,7 +377,7 @@ void main() {
   });
 
   testWidgets('follow notification opens the sender profile', (tester) async {
-    final container = await mount(tester);
+    final container = await mount(tester, withNotificationFixture: true);
     (container.read(authControllerProvider.notifier) as _GuestAuth)
         .finishLogin();
     await tester.pumpAndSettle();
@@ -345,14 +391,14 @@ void main() {
   });
 
   testWidgets('badge notification opens the badge collection', (tester) async {
-    final container = await mount(tester);
+    final container = await mount(tester, withNotificationFixture: true);
     (container.read(authControllerProvider.notifier) as _GuestAuth)
         .finishLogin();
     await tester.pumpAndSettle();
     container.read(appRouterProvider).push('/notifications');
     await tester.pumpAndSettle();
     expect(find.byType(NotificationScreen), findsOneWidget);
-    await tester.tap(find.text('2026 전주 한옥마을 봄축제 뱃지를 획득했어요!'));
+    await tester.tap(find.text('테스트 행사 뱃지를 획득했어요!'));
     await tester.pumpAndSettle();
     expect(find.text('수집한 뱃지'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -361,13 +407,17 @@ void main() {
   testWidgets('post notification opens detail and returns to notifications', (
     tester,
   ) async {
-    final container = await mount(tester, withTagFixture: true);
+    final container = await mount(
+      tester,
+      withTagFixture: true,
+      withNotificationFixture: true,
+    );
     (container.read(authControllerProvider.notifier) as _GuestAuth)
         .finishLogin();
     await tester.pumpAndSettle();
     container.read(appRouterProvider).push('/notifications');
     await tester.pumpAndSettle();
-    await tester.tap(find.text('서울여행러님이 회원님의 게시글을 좋아합니다'));
+    await tester.tap(find.text('테스트 작성자님이 회원님의 게시글을 좋아합니다'));
     await tester.pumpAndSettle();
     expect(find.byType(PostDetailScreen), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -375,6 +425,33 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(NotificationScreen), findsOneWidget);
   });
+
+  testWidgets(
+    'default notification inbox has no sample notifications or unread count',
+    (tester) async {
+      final container = await mount(tester);
+      (container.read(authControllerProvider.notifier) as _GuestAuth)
+          .finishLogin();
+      await tester.pumpAndSettle();
+      container.read(appRouterProvider).push('/notifications');
+      await tester.pumpAndSettle();
+
+      expect(find.text('아직 알림이 없어요'), findsOneWidget);
+      expect(await container.read(notificationsProvider.future), isEmpty);
+      expect(await container.read(unreadNotificationCountProvider.future), 0);
+      expect(
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, '모두 읽음'))
+            .onPressed,
+        isNull,
+      );
+      container.invalidate(notificationRepositoryProvider);
+      await tester.pumpAndSettle();
+      expect(await container.read(notificationsProvider.future), isEmpty);
+      expect(find.text('아직 알림이 없어요'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('settings logout immediately shows progress and completion', (
     tester,
