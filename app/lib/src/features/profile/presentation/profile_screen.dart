@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:snap_here/src/app/router/shell_navigation.dart';
 import 'package:snap_here/src/app/theme/app_tokens.dart';
 import 'package:snap_here/src/core/ui/design_icon.dart';
 import 'package:snap_here/src/core/ui/paged_sliver.dart';
@@ -148,7 +149,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             Expanded(
                               child: TextButton(
                                 onPressed: () =>
-                                    context.push('/profile/badges'),
+                                    openShellRoute(context, '/profile/badges'),
                                 child: const Text(
                                   '수집한 뱃지',
                                   style: TextStyle(
@@ -281,20 +282,24 @@ class _ProfileHeader extends StatelessWidget {
                 _Metric(
                   label: '팔로워',
                   count: profile.stats.followerCount,
-                  onTap: () =>
-                      context.push('/users/${profile.userId}/followers'),
+                  onTap: () => openShellRoute(
+                    context,
+                    '/users/${profile.userId}/followers',
+                  ),
                 ),
                 _Metric(
                   label: '팔로잉',
                   count: profile.stats.followingCount,
-                  onTap: () =>
-                      context.push('/users/${profile.userId}/following'),
+                  onTap: () => openShellRoute(
+                    context,
+                    '/users/${profile.userId}/following',
+                  ),
                 ),
                 if (own)
                   _Metric(
                     label: '뱃지',
                     count: profile.stats.badgeCount,
-                    onTap: () => context.push('/profile/badges'),
+                    onTap: () => openShellRoute(context, '/profile/badges'),
                   ),
               ],
             ),

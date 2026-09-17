@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:snap_here/src/app/router/shell_navigation.dart';
 import 'package:snap_here/src/app/theme/app_tokens.dart';
 import 'package:snap_here/src/core/ui/design_icon.dart';
 import 'package:snap_here/src/core/ui/relative_time.dart';
@@ -77,7 +78,12 @@ class NotificationScreen extends ConsumerWidget {
         ..invalidate(unreadNotificationCountProvider);
     }
     final destination = notification.destination;
-    if (destination != null && context.mounted) context.push(destination);
+    if (destination == null || !context.mounted) return;
+    if (notification.target == NotificationTarget.post) {
+      context.push(destination);
+    } else {
+      openShellRoute(context, destination);
+    }
   }
 }
 

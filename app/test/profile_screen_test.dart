@@ -151,7 +151,7 @@ void main() {
     await tester.tap(find.text('1,342 팔로워'));
     await tester.pumpAndSettle();
     expect(find.text('followers-destination'), findsOneWidget);
-    GoRouter.of(tester.element(find.text('followers-destination'))).pop();
+    GoRouter.of(tester.element(find.text('followers-destination'))).go('/');
     await tester.pumpAndSettle();
     await tester.tap(find.text('수집한 뱃지'));
     await tester.pumpAndSettle();
