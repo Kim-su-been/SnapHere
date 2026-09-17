@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +12,7 @@ import 'package:snap_here/src/features/auth/application/auth_controller.dart';
 import 'package:snap_here/src/features/auth/domain/auth_models.dart';
 import 'package:snap_here/src/features/auth/presentation/login_required_screen.dart';
 import 'package:snap_here/src/features/auth/presentation/login_screen.dart';
+import 'package:snap_here/src/features/auth/presentation/onboarding_screen.dart';
 import 'package:snap_here/src/features/badges/presentation/badge_collection_screen.dart';
 import 'package:snap_here/src/features/community/domain/community_models.dart';
 import 'package:snap_here/src/features/community/application/community_providers.dart';
@@ -29,8 +32,15 @@ import 'package:snap_here/src/features/post/presentation/comments_screen.dart';
 import 'package:snap_here/src/features/post/presentation/post_detail_screen.dart';
 import 'package:snap_here/src/core/ui/remote_image.dart';
 import 'package:snap_here/src/features/social/presentation/connections_screen.dart';
+import 'package:snap_here/src/features/settings/application/settings_providers.dart';
+import 'package:snap_here/src/features/settings/domain/app_locale.dart';
+import 'package:snap_here/src/features/settings/presentation/settings_screen.dart';
+import 'package:snap_here/src/features/settings/presentation/widgets/settings_section.dart';
 
 class _GuestAuth extends AuthController {
+  Completer<void>? signOutGate;
+  int signOutCalls = 0;
+
   @override
   Future<AuthSession?> build() async => const AuthSession.guest();
 
@@ -48,6 +58,26 @@ class _GuestAuth extends AuthController {
       ),
     ),
   );
+
+  @override
+  Future<void> signOut() async {
+    signOutCalls++;
+    if (signOutGate case final gate?) await gate.future;
+    state = const AsyncData(null);
+  }
+}
+
+class _ReadySettings extends UserSettingsController {
+  @override
+  Future<UserSettings> build() async => const UserSettings(
+    locale: AppLocale.ko,
+    notifications: NotificationPreferences(),
+  );
+}
+
+class _ReadyTranslation extends TranslateAllController {
+  @override
+  Future<bool> build() async => false;
 }
 
 class _Profiles extends ApiProfileRepository {
@@ -87,6 +117,8 @@ void main() {
         mapConfiguredProvider.overrideWith((_) async => false),
         mapRegionsProvider.overrideWith((_) async => const []),
         profileRepositoryProvider.overrideWithValue(_Profiles()),
+        userSettingsProvider.overrideWith(_ReadySettings.new),
+        translateAllProvider.overrideWith(_ReadyTranslation.new),
         if (withTagFixture) ...[
           postRepositoryProvider.overrideWithValue(FakePostRepository()),
           communityRepositoryProvider.overrideWithValue(
@@ -322,6 +354,65 @@ void main() {
     await tester.tap(find.byTooltip('뒤로'));
     await tester.pumpAndSettle();
     expect(find.byType(NotificationScreen), findsOneWidget);
+  });
+
+  testWidgets('settings logout immediately shows progress and completion', (
+    tester,
+  ) async {
+    final container = await mount(tester);
+    final auth = container.read(authControllerProvider.notifier) as _GuestAuth;
+    auth.finishLogin();
+    await tester.pumpAndSettle();
+    container.read(appRouterProvider).go('/settings');
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsScreen), findsOneWidget);
+
+    final gate = Completer<void>();
+    auth.signOutGate = gate;
+    await tester.tap(find.text('로그아웃').first);
+    await tester.pump();
+    expect(auth.signOutCalls, 1);
+    expect(find.text('로그아웃 중...'), findsOneWidget);
+    expect(
+      tester
+          .widget<SettingsRow>(find.widgetWithText(SettingsRow, '모든 기기에서 로그아웃'))
+          .enabled,
+      isFalse,
+    );
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.byType(OnboardingScreen), findsOneWidget);
+    expect(find.text('로그아웃했어요.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('failed settings logout restores the action and explains why', (
+    tester,
+  ) async {
+    final container = await mount(tester);
+    final auth = container.read(authControllerProvider.notifier) as _GuestAuth;
+    auth.finishLogin();
+    await tester.pumpAndSettle();
+    container.read(appRouterProvider).go('/settings');
+    await tester.pumpAndSettle();
+
+    final gate = Completer<void>();
+    auth.signOutGate = gate;
+    await tester.tap(find.text('로그아웃').first);
+    await tester.pump();
+    gate.completeError(StateError('sign-out failed'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(find.text('로그아웃하지 못했어요. 다시 시도해 주세요.'), findsOneWidget);
+    expect(
+      tester
+          .widget<SettingsRow>(find.widgetWithText(SettingsRow, '로그아웃'))
+          .enabled,
+      isTrue,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('protected deep links stay guarded and resume only after login', (
