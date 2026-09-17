@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,15 +12,35 @@ import 'package:snap_here/src/features/auth/application/auth_controller.dart';
 import 'package:snap_here/src/features/auth/domain/auth_models.dart';
 import 'package:snap_here/src/features/auth/presentation/login_required_screen.dart';
 import 'package:snap_here/src/features/auth/presentation/login_screen.dart';
+import 'package:snap_here/src/features/auth/presentation/onboarding_screen.dart';
+import 'package:snap_here/src/features/badges/presentation/badge_collection_screen.dart';
 import 'package:snap_here/src/features/community/domain/community_models.dart';
+import 'package:snap_here/src/features/community/application/community_providers.dart';
+import 'package:snap_here/src/features/community/data/fake_community_repository.dart';
+import 'package:snap_here/src/features/community/presentation/tag_posts_screen.dart';
 import 'package:snap_here/src/features/explore/application/explore_providers.dart';
 import 'package:snap_here/src/features/home/presentation/home_screen.dart';
 import 'package:snap_here/src/features/map/application/map_configuration.dart';
+import 'package:snap_here/src/features/notification/presentation/notification_screen.dart';
 import 'package:snap_here/src/features/profile/application/profile_providers.dart';
 import 'package:snap_here/src/features/profile/data/api_profile_repository.dart';
 import 'package:snap_here/src/features/profile/domain/profile_models.dart';
+import 'package:snap_here/src/features/profile/presentation/profile_screen.dart';
+import 'package:snap_here/src/features/post/application/post_providers.dart';
+import 'package:snap_here/src/features/post/data/fake_post_repository.dart';
+import 'package:snap_here/src/features/post/presentation/comments_screen.dart';
+import 'package:snap_here/src/features/post/presentation/post_detail_screen.dart';
+import 'package:snap_here/src/core/ui/remote_image.dart';
+import 'package:snap_here/src/features/social/presentation/connections_screen.dart';
+import 'package:snap_here/src/features/settings/application/settings_providers.dart';
+import 'package:snap_here/src/features/settings/domain/app_locale.dart';
+import 'package:snap_here/src/features/settings/presentation/settings_screen.dart';
+import 'package:snap_here/src/features/settings/presentation/widgets/settings_section.dart';
 
 class _GuestAuth extends AuthController {
+  Completer<void>? signOutGate;
+  int signOutCalls = 0;
+
   @override
   Future<AuthSession?> build() async => const AuthSession.guest();
 
@@ -36,6 +58,26 @@ class _GuestAuth extends AuthController {
       ),
     ),
   );
+
+  @override
+  Future<void> signOut() async {
+    signOutCalls++;
+    if (signOutGate case final gate?) await gate.future;
+    state = const AsyncData(null);
+  }
+}
+
+class _ReadySettings extends UserSettingsController {
+  @override
+  Future<UserSettings> build() async => const UserSettings(
+    locale: AppLocale.ko,
+    notifications: NotificationPreferences(),
+  );
+}
+
+class _ReadyTranslation extends TranslateAllController {
+  @override
+  Future<bool> build() async => false;
 }
 
 class _Profiles extends ApiProfileRepository {
@@ -64,6 +106,8 @@ void main() {
   Future<ProviderContainer> mount(
     WidgetTester tester, {
     Size size = const Size(412, 893),
+    bool withTagFixture = false,
+    bool withSearchUserFixture = false,
   }) async {
     await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -73,6 +117,22 @@ void main() {
         mapConfiguredProvider.overrideWith((_) async => false),
         mapRegionsProvider.overrideWith((_) async => const []),
         profileRepositoryProvider.overrideWithValue(_Profiles()),
+        userSettingsProvider.overrideWith(_ReadySettings.new),
+        translateAllProvider.overrideWith(_ReadyTranslation.new),
+        if (withTagFixture) ...[
+          postRepositoryProvider.overrideWithValue(FakePostRepository()),
+          communityRepositoryProvider.overrideWithValue(
+            FakeCommunityRepository(),
+          ),
+        ],
+        if (withSearchUserFixture)
+          communitySearchResultProvider.overrideWith(
+            (_) async => const CommunitySearchResult(
+              posts: [],
+              totalCount: 1,
+              users: [SearchedUser(userId: 'u2', nickname: '검색 여행자')],
+            ),
+          ),
       ],
     );
     addTearDown(container.dispose);
@@ -157,6 +217,202 @@ void main() {
       '/users/u2',
     );
     expect(find.text('테스트 여행자'), findsOneWidget);
+  });
+
+  testWidgets(
+    'search to post to tag opens tag posts without duplicate navigator keys',
+    (tester) async {
+      final container = await mount(tester, withTagFixture: true);
+      final router = container.read(appRouterProvider);
+      router.go('/community/search');
+      await tester.pumpAndSettle();
+      router.push('/photos/pst_1');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('2026 전주 한옥마을 봄축제'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TagPostsScreen), findsOneWidget);
+      expect(
+        GoRouterState.of(tester.element(find.byType(TagPostsScreen))).uri.path,
+        '/tags/tag_1',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('post detail author opens profile without duplicate shell keys', (
+    tester,
+  ) async {
+    final container = await mount(tester, withTagFixture: true);
+    final router = container.read(appRouterProvider);
+    router.push('/photos/pst_1');
+    await tester.pumpAndSettle();
+    final authorAvatar = find.descendant(
+      of: find.byType(PostDetailScreen),
+      matching: find.byType(ProfileAvatar),
+    );
+    await tester.tap(authorAvatar.first);
+    await tester.pumpAndSettle();
+    expect(find.byType(ProfileScreen), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final searchLocation in ['/search', '/community/search']) {
+    testWidgets('search user opens profile from $searchLocation', (
+      tester,
+    ) async {
+      final container = await mount(tester, withSearchUserFixture: true);
+      container.read(appRouterProvider).push(searchLocation);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '여행자');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('검색 여행자'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ProfileScreen), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('post detail comments open without duplicate parent page keys', (
+    tester,
+  ) async {
+    final container = await mount(tester, withTagFixture: true);
+    container.read(appRouterProvider).push('/photos/pst_1');
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('댓글 28개'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('댓글 28개'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CommentsScreen), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('profile opens badges and follower list inside its shell', (
+    tester,
+  ) async {
+    final container = await mount(tester);
+    (container.read(authControllerProvider.notifier) as _GuestAuth)
+        .finishLogin();
+    await tester.pumpAndSettle();
+    final router = container.read(appRouterProvider);
+    router.go('/profile');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('수집한 뱃지').first);
+    await tester.pumpAndSettle();
+    expect(find.byType(BadgeCollectionScreen), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    router.go('/users/u2');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1 팔로워'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ConnectionsScreen), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('follow notification opens the sender profile', (tester) async {
+    final container = await mount(tester);
+    (container.read(authControllerProvider.notifier) as _GuestAuth)
+        .finishLogin();
+    await tester.pumpAndSettle();
+    container.read(appRouterProvider).push('/notifications');
+    await tester.pumpAndSettle();
+    expect(find.byType(NotificationScreen), findsOneWidget);
+    await tester.tap(find.text('제주사진가님이 팔로우했어요'));
+    await tester.pumpAndSettle();
+    expect(find.text('테스트 여행자'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('badge notification opens the badge collection', (tester) async {
+    final container = await mount(tester);
+    (container.read(authControllerProvider.notifier) as _GuestAuth)
+        .finishLogin();
+    await tester.pumpAndSettle();
+    container.read(appRouterProvider).push('/notifications');
+    await tester.pumpAndSettle();
+    expect(find.byType(NotificationScreen), findsOneWidget);
+    await tester.tap(find.text('2026 전주 한옥마을 봄축제 뱃지를 획득했어요!'));
+    await tester.pumpAndSettle();
+    expect(find.text('수집한 뱃지'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('post notification opens detail and returns to notifications', (
+    tester,
+  ) async {
+    final container = await mount(tester, withTagFixture: true);
+    (container.read(authControllerProvider.notifier) as _GuestAuth)
+        .finishLogin();
+    await tester.pumpAndSettle();
+    container.read(appRouterProvider).push('/notifications');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('서울여행러님이 회원님의 게시글을 좋아합니다'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PostDetailScreen), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byTooltip('뒤로'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NotificationScreen), findsOneWidget);
+  });
+
+  testWidgets('settings logout immediately shows progress and completion', (
+    tester,
+  ) async {
+    final container = await mount(tester);
+    final auth = container.read(authControllerProvider.notifier) as _GuestAuth;
+    auth.finishLogin();
+    await tester.pumpAndSettle();
+    container.read(appRouterProvider).go('/settings');
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsScreen), findsOneWidget);
+
+    final gate = Completer<void>();
+    auth.signOutGate = gate;
+    await tester.tap(find.text('로그아웃').first);
+    await tester.pump();
+    expect(auth.signOutCalls, 1);
+    expect(find.text('로그아웃 중...'), findsOneWidget);
+    expect(
+      tester
+          .widget<SettingsRow>(find.widgetWithText(SettingsRow, '모든 기기에서 로그아웃'))
+          .enabled,
+      isFalse,
+    );
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.byType(OnboardingScreen), findsOneWidget);
+    expect(find.text('로그아웃했어요.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('failed settings logout restores the action and explains why', (
+    tester,
+  ) async {
+    final container = await mount(tester);
+    final auth = container.read(authControllerProvider.notifier) as _GuestAuth;
+    auth.finishLogin();
+    await tester.pumpAndSettle();
+    container.read(appRouterProvider).go('/settings');
+    await tester.pumpAndSettle();
+
+    final gate = Completer<void>();
+    auth.signOutGate = gate;
+    await tester.tap(find.text('로그아웃').first);
+    await tester.pump();
+    gate.completeError(StateError('sign-out failed'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(find.text('로그아웃하지 못했어요. 다시 시도해 주세요.'), findsOneWidget);
+    expect(
+      tester
+          .widget<SettingsRow>(find.widgetWithText(SettingsRow, '로그아웃'))
+          .enabled,
+      isTrue,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('protected deep links stay guarded and resume only after login', (
