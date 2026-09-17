@@ -343,8 +343,15 @@ class ShareMetadata {
 }
 
 class PostFailure implements Exception {
-  const PostFailure(this.message);
+  const PostFailure(this.message, {this.code, this.statusCode});
   final String message;
+  final String? code;
+  final int? statusCode;
+
+  bool get isUnavailable =>
+      code == 'POST_NOT_FOUND' ||
+      code == 'POST_NOT_VISIBLE' ||
+      statusCode == 404;
   @override
   String toString() => message;
 }

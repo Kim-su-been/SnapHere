@@ -1,5 +1,6 @@
 package com.snaphere.api.report;
 
+import com.snaphere.api.auth.ExternalIds;
 import com.snaphere.api.common.security.CurrentUser;
 import com.snaphere.api.common.security.CurrentUserProvider;
 import com.snaphere.api.common.web.ApiResponse;
@@ -37,12 +38,12 @@ public class PostReportController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<ReportReceiptResponse>> report(
-            @PathVariable long postId,
+            @PathVariable String postId,
             @Valid @RequestBody CreateReportRequest request,
             HttpServletRequest httpRequest) {
 
         CurrentUser user = currentUserProvider.require(httpRequest);
-        ReportReceiptResponse receipt = postReportService.report(postId, user.userId(), request);
+        ReportReceiptResponse receipt = postReportService.report(ExternalIds.parsePost(postId), user.userId(), request);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok(receipt, TraceIdFilter.currentTraceId(httpRequest)));

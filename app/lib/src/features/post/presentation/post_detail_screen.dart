@@ -39,9 +39,25 @@ class PostDetailScreen extends ConsumerWidget {
       ),
       body: post.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => NetworkErrorView(
-          onRetry: () => ref.invalidate(postDetailProvider(postId)),
-        ),
+        error: (error, _) {
+          final failure = error is PostFailure ? error : null;
+          if (failure?.isUnavailable == true) {
+            return StateView(
+              icon: Icons.search_off,
+              title: failure!.message,
+              description: '삭제되었거나 공개되지 않은 게시글일 수 있어요.',
+              action: OutlinedButton(
+                onPressed: () =>
+                    context.canPop() ? context.pop() : context.go('/community'),
+                child: const Text('목록으로 돌아가기'),
+              ),
+            );
+          }
+          return LoadErrorView(
+            title: failure?.message ?? '게시글을 불러오지 못했어요.',
+            onRetry: () => ref.invalidate(postDetailProvider(postId)),
+          );
+        },
         data: (detail) => RefreshIndicator(
           onRefresh: () async => ref.invalidate(postDetailProvider(postId)),
           child: ListView(

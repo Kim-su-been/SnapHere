@@ -1,5 +1,6 @@
 package com.snaphere.api.post.share;
 
+import com.snaphere.api.auth.ExternalIds;
 import com.snaphere.api.common.web.ApiResponse;
 import com.snaphere.api.common.web.TraceIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
@@ -39,10 +40,10 @@ public class ShareController {
 
     @GetMapping("/share-metadata")
     public ResponseEntity<ApiResponse<ShareMetadataResponse>> shareMetadata(
-            @PathVariable long postId,
+            @PathVariable String postId,
             HttpServletRequest httpRequest) {
 
-        ShareMetadataResponse metadata = shareMetadataService.metadata(postId);
+        ShareMetadataResponse metadata = shareMetadataService.metadata(ExternalIds.parsePost(postId));
 
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.maxAge(CACHE_TTL).cachePublic())

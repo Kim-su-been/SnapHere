@@ -17,6 +17,18 @@ public final class ExternalIds {
     public static String sync(long id) { return encode("sync", id); }
     public static String tag(long id) { return encode("tag", id); }
 
+    /** 게시글 경로는 외부 ID를 사용하며, 이미 배포된 앱의 숫자 경로도 호환한다. */
+    public static long parsePost(String value) {
+        if (value != null && value.matches("[0-9]+")) {
+            try {
+                return Long.parseLong(value);
+            } catch (NumberFormatException e) {
+                throw new ApiException(ErrorCode.POST_NOT_FOUND);
+            }
+        }
+        return parse(value, "pst", ErrorCode.POST_NOT_FOUND);
+    }
+
     public static long parse(String value, String prefix, ErrorCode error) {
         try {
             if (value == null || !value.startsWith(prefix + "_")) throw new IllegalArgumentException();

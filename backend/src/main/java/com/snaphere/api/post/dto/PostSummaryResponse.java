@@ -1,5 +1,6 @@
 package com.snaphere.api.post.dto;
 
+import com.snaphere.api.auth.ExternalIds;
 import com.snaphere.api.post.entity.PostEntity;
 
 import java.math.BigDecimal;
@@ -37,7 +38,7 @@ public record PostSummaryResponse(
                                          Boolean isBookmarked) {
         PostImageResponse cover = images.isEmpty() ? null : images.get(0);
         return new PostSummaryResponse(
-                String.valueOf(post.getPostId()),
+                ExternalIds.post(post.getPostId()),
                 author,
                 place,
                 cover == null ? null : cover.thumbnailUrl(),
