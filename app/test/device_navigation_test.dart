@@ -75,11 +75,6 @@ class _ReadySettings extends UserSettingsController {
   );
 }
 
-class _ReadyTranslation extends TranslateAllController {
-  @override
-  Future<bool> build() async => false;
-}
-
 class _Profiles extends ApiProfileRepository {
   ProfileSnapshot profile(String id) => ProfileSnapshot(
     userId: id,
@@ -118,7 +113,6 @@ void main() {
         mapRegionsProvider.overrideWith((_) async => const []),
         profileRepositoryProvider.overrideWithValue(_Profiles()),
         userSettingsProvider.overrideWith(_ReadySettings.new),
-        translateAllProvider.overrideWith(_ReadyTranslation.new),
         if (withTagFixture) ...[
           postRepositoryProvider.overrideWithValue(FakePostRepository()),
           communityRepositoryProvider.overrideWithValue(

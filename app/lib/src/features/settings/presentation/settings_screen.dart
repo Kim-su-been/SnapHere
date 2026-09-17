@@ -14,8 +14,7 @@ import 'package:snap_here/src/features/settings/presentation/widgets/settings_se
 
 /// Figma `Wireframe_v3 / 07 Shared Detail / 07_설정`.
 ///
-/// `표시` 묶음은 v3 프레임에 없다. 기존 프로필 설정 시트에 있던 `전체 번역`을
-/// 이 화면으로 옮기면서 언어 선택과 짝지어 되살린 것이다 (SYS-010).
+/// 자동 번역은 후속 기능이므로 동작하지 않는 번역 스위치는 노출하지 않는다.
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -65,10 +64,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
-          const SettingsSection(
-            title: '표시',
-            children: [_TranslateAllRow(), _LocaleRow()],
-          ),
+          const SettingsSection(title: '표시', children: [_LocaleRow()]),
           const SettingsSection(
             title: '알림',
             children: [_PushNotificationRow()],
@@ -162,24 +158,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     } finally {
       if (mounted) setState(() => _signingOut = false);
     }
-  }
-}
-
-/// 원문 대신 번역문을 보여줄지. 서버에 필드가 없어 기기에만 남는다.
-class _TranslateAllRow extends ConsumerWidget {
-  const _TranslateAllRow();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final enabled = ref.watch(translateAllProvider);
-    return SettingsSwitchRow(
-      label: '전체 번역',
-      description: '사용자 게시글과 댓글을 선택한 언어로 표시',
-      value: enabled.value ?? false,
-      onChanged: enabled.isLoading
-          ? null
-          : (value) => ref.read(translateAllProvider.notifier).set(value),
-    );
   }
 }
 
