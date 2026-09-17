@@ -24,7 +24,9 @@ class NotificationScreen extends ConsumerWidget {
         title: const Text('알림'),
         actions: [
           TextButton(
-            onPressed: () => _markAllRead(ref),
+            onPressed: notifications.value?.any((item) => !item.isRead) == true
+                ? () => _markAllRead(ref)
+                : null,
             child: const Text('모두 읽음'),
           ),
         ],
