@@ -332,7 +332,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     },
                     child: DraggableScrollableSheet(
                       controller: _sheet,
-                      key: ValueKey(selected.areaCode),
                       initialChildSize: .58,
                       minChildSize: .25,
                       maxChildSize: .90,
