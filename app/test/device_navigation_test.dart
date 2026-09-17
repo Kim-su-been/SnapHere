@@ -8,8 +8,12 @@ import 'package:snap_here/src/app.dart';
 import 'package:snap_here/src/app/router/app_router.dart';
 import 'package:snap_here/src/app/router/login_navigation.dart';
 import 'package:snap_here/src/core/network/cursor_page.dart';
+import 'package:snap_here/src/features/activity/application/activity_providers.dart';
+import 'package:snap_here/src/features/activity/data/api_activity_repository.dart';
+import 'package:snap_here/src/features/activity/domain/activity_models.dart';
 import 'package:snap_here/src/features/auth/application/auth_controller.dart';
 import 'package:snap_here/src/features/auth/domain/auth_models.dart';
+import 'package:snap_here/src/features/auth/domain/auth_repository.dart';
 import 'package:snap_here/src/features/auth/presentation/login_required_screen.dart';
 import 'package:snap_here/src/features/auth/presentation/login_screen.dart';
 import 'package:snap_here/src/features/auth/presentation/onboarding_screen.dart';
@@ -40,6 +44,8 @@ import 'package:snap_here/src/features/settings/presentation/widgets/settings_se
 class _GuestAuth extends AuthController {
   Completer<void>? signOutGate;
   int signOutCalls = 0;
+  SignOutResult signOutResult = const SignOutResult();
+  bool serverSessionAlreadyEnded = false;
 
   @override
   Future<AuthSession?> build() async => const AuthSession.guest();
@@ -60,10 +66,27 @@ class _GuestAuth extends AuthController {
   );
 
   @override
-  Future<void> signOut() async {
+  Future<SignOutResult> signOut({
+    bool serverSessionAlreadyEnded = false,
+  }) async {
     signOutCalls++;
+    this.serverSessionAlreadyEnded = serverSessionAlreadyEnded;
     if (signOutGate case final gate?) await gate.future;
     state = const AsyncData(null);
+    return signOutResult;
+  }
+}
+
+class _LogoutActivity extends ApiActivityRepository {
+  _LogoutActivity({this.fail = false}) : super(accessToken: 'test');
+
+  final bool fail;
+  int calls = 0;
+
+  @override
+  Future<void> logoutAllDevices() async {
+    calls++;
+    if (fail) throw const ActivityFailure('네트워크에 연결할 수 없어요.');
   }
 }
 
@@ -103,6 +126,7 @@ void main() {
     Size size = const Size(412, 893),
     bool withTagFixture = false,
     bool withSearchUserFixture = false,
+    _LogoutActivity? logoutActivity,
   }) async {
     await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -113,6 +137,8 @@ void main() {
         mapRegionsProvider.overrideWith((_) async => const []),
         profileRepositoryProvider.overrideWithValue(_Profiles()),
         userSettingsProvider.overrideWith(_ReadySettings.new),
+        if (logoutActivity != null)
+          activityRepositoryProvider.overrideWithValue(logoutActivity),
         if (withTagFixture) ...[
           postRepositoryProvider.overrideWithValue(FakePostRepository()),
           communityRepositoryProvider.overrideWithValue(
@@ -378,6 +404,99 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(OnboardingScreen), findsOneWidget);
     expect(find.text('로그아웃했어요.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'partial logout still leaves settings and reports the unconfirmed server session',
+    (tester) async {
+      final container = await mount(tester);
+      final auth =
+          container.read(authControllerProvider.notifier) as _GuestAuth;
+      auth.finishLogin();
+      auth.signOutResult = const SignOutResult(serverSessionEnded: false);
+      await tester.pumpAndSettle();
+      container.read(appRouterProvider).go('/settings');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('로그아웃').first);
+      await tester.pumpAndSettle();
+      expect(find.byType(OnboardingScreen), findsOneWidget);
+      expect(find.text('이 기기에서 로그아웃했어요. 서버 세션 종료는 확인하지 못했어요.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'all-device logout confirms server revocation before local cleanup',
+    (tester) async {
+      final activity = _LogoutActivity();
+      final container = await mount(tester, logoutActivity: activity);
+      final auth =
+          container.read(authControllerProvider.notifier) as _GuestAuth;
+      auth.finishLogin();
+      await tester.pumpAndSettle();
+      container.read(appRouterProvider).go('/settings');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('모든 기기에서 로그아웃'));
+      await tester.pumpAndSettle();
+      expect(activity.calls, 1);
+      expect(auth.signOutCalls, 1);
+      expect(auth.serverSessionAlreadyEnded, isTrue);
+      expect(find.byType(OnboardingScreen), findsOneWidget);
+      expect(find.text('모든 기기에서 로그아웃했어요.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'failed all-device revocation keeps login and does not report success',
+    (tester) async {
+      final activity = _LogoutActivity(fail: true);
+      final container = await mount(tester, logoutActivity: activity);
+      final auth =
+          container.read(authControllerProvider.notifier) as _GuestAuth;
+      auth.finishLogin();
+      await tester.pumpAndSettle();
+      container.read(appRouterProvider).go('/settings');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('모든 기기에서 로그아웃'));
+      await tester.pumpAndSettle();
+      expect(activity.calls, 1);
+      expect(auth.signOutCalls, 0);
+      expect(
+        container.read(authControllerProvider).value?.isAuthenticated,
+        isTrue,
+      );
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      expect(find.text('네트워크에 연결할 수 없어요.'), findsOneWidget);
+      expect(find.text('모든 기기에서 로그아웃했어요.'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('failed session deletion displays a specific retry message', (
+    tester,
+  ) async {
+    final container = await mount(tester);
+    final auth = container.read(authControllerProvider.notifier) as _GuestAuth;
+    auth.finishLogin();
+    await tester.pumpAndSettle();
+    container.read(appRouterProvider).go('/settings');
+    await tester.pumpAndSettle();
+    final gate = Completer<void>();
+    auth.signOutGate = gate;
+    await tester.tap(find.text('로그아웃').first);
+    await tester.pump();
+    gate.completeError(
+      const AuthFailure('기기에 저장된 로그인 정보를 지우지 못했어요. 다시 시도해 주세요.'),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(find.text('기기에 저장된 로그인 정보를 지우지 못했어요. 다시 시도해 주세요.'), findsOneWidget);
+    expect(find.text('로그아웃했어요.'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
