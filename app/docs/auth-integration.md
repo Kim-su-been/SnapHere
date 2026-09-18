@@ -1,13 +1,13 @@
 # Android 인증 API 연결
 
-앱은 기본적으로 실제 로컬 API를 사용한다. 인증 대체 구현이 필요한 UI 테스트나 데모 실행에서는 `--dart-define=USE_FAKE_AUTH=true`를 전달한다.
+앱은 기본적으로 `https://snaphere.duckdns.org`의 운영 API를 사용한다. 인증 대체 구현이 필요한 UI 테스트나 데모 실행에서는 `--dart-define=USE_FAKE_AUTH=true`를 전달한다.
 
 ```powershell
 flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080 `
   --dart-define=GOOGLE_SERVER_CLIENT_ID=000000000000-example.apps.googleusercontent.com
 ```
 
-Android 에뮬레이터에서 호스트 PC의 백엔드에 접근할 때는 `10.0.2.2`를 사용한다. Windows·iOS 시뮬레이터 등에서 생략하면 기본값은 `http://localhost:8080`이다.
+Android 에뮬레이터에서 호스트 PC의 백엔드에 접근할 때는 `10.0.2.2`를 명시한다. `API_BASE_URL`을 생략하면 운영 HTTPS 주소가 적용되며, 앱은 뒤에 `/api/v1`을 붙인다.
 
 Android Google SDK의 `serverClientId`는 Web OAuth 클라이언트 ID다.
 기존 앱 `.env`의 `GOOGLE_OAUTH_CLIENT_ID`도 자동으로 읽는다.
