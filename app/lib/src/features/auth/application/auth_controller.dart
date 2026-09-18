@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snap_here/src/features/auth/data/api_auth_repository.dart';
 import 'package:snap_here/src/features/auth/data/asset_legal_document_repository.dart';
@@ -35,6 +36,8 @@ final legalDocumentProvider =
 final authControllerProvider =
     AsyncNotifierProvider<AuthController, AuthSession?>(AuthController.new);
 
+enum _GoogleSignInStage { identity, exchange, storage }
+
 class AuthController extends AsyncNotifier<AuthSession?> {
   AuthRepository get _repository => ref.read(authRepositoryProvider);
   SessionStore get _store => ref.read(sessionStoreProvider);
@@ -62,10 +65,13 @@ class AuthController extends AsyncNotifier<AuthSession?> {
 
   Future<bool> signInWithGoogle() async {
     final previous = state.value;
+    var stage = _GoogleSignInStage.identity;
     state = const AsyncLoading();
     try {
       final credential = await ref.read(googleIdentityClientProvider).signIn();
+      stage = _GoogleSignInStage.exchange;
       final session = await _repository.exchangeGoogleCredential(credential);
+      stage = _GoogleSignInStage.storage;
       await _store.write(session);
       state = AsyncData(session);
       return true;
@@ -76,7 +82,14 @@ class AuthController extends AsyncNotifier<AuthSession?> {
       }
       state = AsyncError(error, stackTrace);
     } on Object catch (error, stackTrace) {
-      state = AsyncError(const AuthFailure('로그인 중 오류가 발생했습니다.'), stackTrace);
+      debugPrint('SnapHereAuth stage=${stage.name} type=${error.runtimeType}');
+      final message = switch (stage) {
+        _GoogleSignInStage.identity => 'Google 인증을 완료하지 못했어요. 다시 시도해 주세요.',
+        _GoogleSignInStage.exchange =>
+          '로그인 서버의 응답을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.',
+        _GoogleSignInStage.storage => '기기에 로그인 정보를 저장하지 못했어요. 다시 시도해 주세요.',
+      };
+      state = AsyncError(AuthFailure(message), stackTrace);
     }
     return false;
   }
