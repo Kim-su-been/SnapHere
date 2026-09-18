@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snap_here/src/features/auth/data/api_auth_repository.dart';
+import 'package:snap_here/src/features/auth/data/asset_legal_document_repository.dart';
 import 'package:snap_here/src/features/auth/data/fake_auth_repository.dart';
 import 'package:snap_here/src/features/auth/data/google_identity_client.dart';
 import 'package:snap_here/src/features/auth/data/session_store.dart';
@@ -23,7 +24,7 @@ final sessionStoreProvider = Provider<SessionStore>(
 );
 
 final legalDocumentRepositoryProvider = Provider<LegalDocumentRepository>(
-  (ref) => FakeLegalDocumentRepository(),
+  (ref) => AssetLegalDocumentRepository(),
 );
 
 final legalDocumentProvider =
