@@ -32,3 +32,6 @@ flutter:
   assets:
     - .env
     - assets/images/navigation/
+    - assets/legal/privacy-policy.ko.md
+    - assets/legal/privacy-consent.ko.md
+    - assets/legal/terms-of-service.ko.md
